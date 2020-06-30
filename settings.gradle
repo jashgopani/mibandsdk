@@ -1,0 +1,3 @@
+include ':MiBandSDK'
+include ':app'
+rootProject.name = "MiBandSDKExample"

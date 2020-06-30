@@ -338,7 +338,9 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
 
 
     private void vibrateBand(CustomVibration customVibration) {
-
+        int p[] = new int[]{vonSb.getProgress(),voffSb.getProgress()};
+        int repeat = vrepeatSb.getProgress();
+        miBand.startVibration(p,repeat);
     }
 
     private void vibrateBand(VibrationMode mode) {

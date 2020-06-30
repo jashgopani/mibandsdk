@@ -6,6 +6,9 @@ import androidx.annotation.NonNull;
 
 import java.util.Arrays;
 
+import jashgopani.github.io.mibandsdk.BluetoothIO;
+import jashgopani.github.io.mibandsdk.MiBand;
+
 
 public class CustomVibration implements Runnable {
     final public static int MAX_ON = 1000;
@@ -119,14 +122,14 @@ public class CustomVibration implements Runnable {
         return r * (Math.round(i / r));
     }
 
-    private void normalVibrate() {
+    private void normalVibrate(BluetoothIO io) {
         Log.d(TAG, "Custom Normal Vibration : " + this);
         for (int i = 0; i < this.getRepeat(); i++) {
             Log.d(TAG, "run: Custom Vibration no : " + i);
             try {
-//                writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, this.getProtocol());
+                io.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, this.getProtocol());
                 Thread.sleep(this.getOnTime());
-//                writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
+                io.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
                 Thread.sleep(this.getOffTime());
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -134,15 +137,15 @@ public class CustomVibration implements Runnable {
         }
     }
 
-    private void patternVibrate() {
+    private void patternVibrate(BluetoothIO io) {
         Log.d(TAG, "Custom Pattern Vibration : " + this);
         Log.d(TAG, "patternVibrate: " + Arrays.toString(customPattern));
         for (int i = 0; i < customPattern.length - 1; i++) {
             Log.d(TAG, "run: Vibration ON Time : " + customPattern[i]);
             try {
-//                writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, this.getProtocol());
+                io.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, this.getProtocol());
                 Thread.sleep(customPattern[i]);
-//                writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
+                io.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
                 Thread.sleep(customPattern[i + 1]);
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -159,8 +162,8 @@ public class CustomVibration implements Runnable {
 
     @Override
     public void run() {
-        if (isCustomPattern()) patternVibrate();
-        else normalVibrate();
+//        if (isCustomPattern(new BluetoothIO())) patternVibrate();
+//        else normalVibrate();
     }
 
 }

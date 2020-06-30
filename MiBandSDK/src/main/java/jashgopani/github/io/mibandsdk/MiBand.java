@@ -9,6 +9,7 @@ import android.content.Context;
 import android.bluetooth.le.ScanResult;
 import android.util.Log;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -17,8 +18,10 @@ import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.ObservableEmitter;
 import io.reactivex.rxjava3.core.ObservableOnSubscribe;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import jashgopani.github.io.mibandsdk.models.BatteryInfo;
+import jashgopani.github.io.mibandsdk.models.CustomVibration;
 import jashgopani.github.io.mibandsdk.models.Profile;
 import jashgopani.github.io.mibandsdk.models.Protocol;
 import jashgopani.github.io.mibandsdk.models.VibrationMode;
@@ -238,6 +241,33 @@ public class MiBand implements BluetoothListener {
             startVibrationSubject.subscribe(new ObserverWrapper(emitter));
             bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION,Profile.UUID_CHAR_VIBRATION,protocol);
         });
+    }
+
+    public void startVibration(int[] p,int repeat){
+        Log.d(TAG, "startVibration: Custom Vibration ");
+        ArrayList<int[]> tuple = new ArrayList<>();
+        for (int i = 0; i < repeat; i++) {
+            tuple.add(p);
+        }
+        long mt1 = System.nanoTime();
+        System.out.println("Started at "+mt1);
+        Observable.fromIterable(tuple).observeOn(Schedulers.io()).subscribeOn(Schedulers.computation()).subscribe(
+                t->{
+                    System.out.println(Thread.currentThread());
+                    bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.VIBRATION_WITH_LED);
+                    Thread.sleep(t[0]);
+                    bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
+                    Thread.sleep(t[1]);
+                    System.out.println();
+                },
+                e->e.printStackTrace(),
+                ()->{
+                    long mt2 = System.nanoTime();
+                    double mtdiff = (mt2-mt1)/1e6;
+                    System.out.println("Completed at "+mt2);
+                    System.out.println("Completed in "+mtdiff+"s");
+                }
+        );
     }
 
     /**

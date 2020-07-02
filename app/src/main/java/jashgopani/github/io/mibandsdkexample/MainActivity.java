@@ -193,7 +193,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
                 disconnectAndUnpair();
         });
 
-        vibrateBtn.setOnClickListener(v -> vibrateBand(VibrationMode.VIBRATION_WITH_LED));
+        vibrateBtn.setOnClickListener(v -> miBand.vibrate(VibrationMode.VIBRATION_WITH_LED));
 
         vonSb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -251,10 +251,10 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         patternTextVibrateBtn.setOnClickListener(v -> {
             String pattern = vpatternEt.getText().toString();
             Log.d(TAG, "onClick: Pattern Vibrate : "+pattern);
-            vibrateBand(pattern==null?"":pattern.trim());
+            miBand.vibrate(CustomVibration.generatePattern(pattern,","));
         });
 
-        customVibrateBtn.setOnClickListener(v->{miBand.startVibration(CustomVibration.generatePattern(vonSb.getProgress(),voffSb.getProgress(),vrepeatSb.getProgress()));});
+        customVibrateBtn.setOnClickListener(v->{miBand.vibrate(CustomVibration.generatePattern(vonSb.getProgress(),voffSb.getProgress(),vrepeatSb.getProgress()));});
     }
 
 
@@ -316,32 +316,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
                 )
         );
     }
-
-
-    private void vibrateBand(String pattern){
-        Integer []customPattern;
-        if (pattern == null || pattern.length() == 0) {
-            customPattern = new Integer[]{350,100,200};
-        } else {
-            String[] split = pattern.split(",");
-            //if last value is off-time then it is useless
-            int patternLength = split.length % 2 == 0 ? split.length : (split.length - 1);
-            customPattern = new Integer[patternLength];
-            for (int i = 0; i < patternLength; i++) {
-                customPattern[i] = Integer.parseInt(split[i]);
-            }
-        }
-
-        miBand.startVibration(customPattern);
-    }
-
-    private void vibrateBand(VibrationMode mode) {
-        disposables.add(miBand.startVibration(mode)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe());
-    }
-
 
     //UI related methods
     private void updateUIControls() {

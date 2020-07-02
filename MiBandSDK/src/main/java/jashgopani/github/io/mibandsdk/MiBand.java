@@ -245,6 +245,10 @@ public class MiBand implements BluetoothListener {
         vibrate(CustomVibration.DEFAULT,getVibrationProtocol(null));
     }
 
+    public void vibrate(VibrationMode mode){
+        vibrate(CustomVibration.DEFAULT,getVibrationProtocol(mode));
+    }
+
     public void vibrate(int repeat){
         //TODO : implement
     }

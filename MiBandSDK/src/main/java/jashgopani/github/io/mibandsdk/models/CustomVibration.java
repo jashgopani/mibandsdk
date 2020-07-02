@@ -89,4 +89,9 @@ public class CustomVibration {
         return customPattern;
     }
 
+    public static final Integer[] generatePattern(int repeat){
+        //TODO : implement
+        return null;
+    }
+
 }

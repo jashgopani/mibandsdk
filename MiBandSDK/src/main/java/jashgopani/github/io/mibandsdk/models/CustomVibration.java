@@ -9,161 +9,84 @@ import java.util.Arrays;
 import jashgopani.github.io.mibandsdk.BluetoothIO;
 import jashgopani.github.io.mibandsdk.MiBand;
 
-
-public class CustomVibration implements Runnable {
-    final public static int MAX_ON = 1000;
-    final public static int MAX_OFF = 1000;
-    final public static int MIN_ON = 100;
-    final public static int MIN_OFF = 25;
-    final public static int MAX_REPEAT = 10;
-    final public static int MIN_REPEAT = 2;
+/**
+ * This class is a Utility class for generating Custom Vibration Patterns for passing to {#Miband.startVibration()}
+ */
+public class CustomVibration {
     private static final String TAG = "CustomVibration";
-    private int onTime, offTime, repeat;
-    private byte[] protocol;
-    private int ROUND = 5;
-    private boolean isCustomPattern;
-    private String defaultPattern;
-    private int[] customPattern;
+    private static final int ROUNDER = 5;
 
-    public CustomVibration(int on, int off, int repeat) {
-        setOnTime(onTime);
-        setOffTime(offTime);
-        setRepeat(repeat);
-        setCustomPattern(false);
-    }
+    //for vibration
+    private static final int zzzz = 600;
+    private static final int zzz = 500;
+    private static final int zz = 200;
+    private static final int z = 100;
+    //for silent or pause
+    private static final int X = 1000;
+    private static final int xxxx = 600;
+    private static final int xxx = 500;
+    private static final int xx = 200;
+    private static final int x = 100;
 
-    public CustomVibration() {
-        onTime = 350;
-        offTime = 250;
-        repeat = 2;
-        protocol = Protocol.VIBRATION_WITHOUT_LED;
-        setCustomPattern(false);
-    }
+    /**
+     * Vibration Patterns
+     */
+    public static final Integer[] DEFAULT = new Integer[]{z,x,z,x};
+    public static final Integer[] LEFT_PULSE = new Integer[]{zzz,xx,z,xx,z,xx};
+    public static final Integer[] RIGHT_PULSE = new Integer[]{z,xx,z,xx,zzz,xx};
+    public static final Integer[] FROWN = new Integer[]{zzz,x,z,x,z,zzz,x};
+    public static final Integer[] SMILE = new Integer[]{z,x,zzz,x,zzz,x,z,x};
 
-    public CustomVibration(String pattern) {
-
-        protocol = Protocol.VIBRATION_WITHOUT_LED;
-        setCustomPattern(true);
-
-        if (pattern == null || pattern.length() == 0) {
-            customPattern = new int[]{350, 250, 150, 150, 350, 100, 250, 100, 250, 100, 95};
-//                customPattern = new int[]{100,150,100,150,100,150,100};
-        } else {
-            String[] split = pattern.split(",");
-            //if last value is off-time then it is useless
-            int patternLength = split.length % 2 == 0 ? split.length : (split.length - 1);
-            customPattern = new int[patternLength];
-            for (int i = 0; i < patternLength; i++) {
-                customPattern[i] = Integer.parseInt(split[i]);
-            }
-        }
-    }
-
-    public CustomVibration(int onTime, int offTime, int repeat, byte[] protocol) {
-        this.onTime = onTime;
-        this.offTime = offTime;
-        this.repeat = repeat;
-        this.protocol = protocol;
-    }
-
-    public int getOnTime() {
-        return onTime;
-    }
-
-    public void setOnTime(int onTime) {
-        onTime = roundTo(onTime, ROUND);
-        //between minOFF and maxOFF
-        this.onTime = Math.min(Math.max(onTime, MIN_ON), MAX_ON);
-    }
-
-    public int getOffTime() {
-        return offTime;
-    }
-
-    public void setOffTime(int offTime) {
-        offTime = roundTo(offTime, ROUND);
-        //between minOFF and maxOFF
-        this.offTime = Math.min(Math.max(offTime, MIN_OFF), MAX_OFF);
-    }
-
-    public int getRepeat() {
-        return repeat;
-    }
-
-    public void setRepeat(int repeat) {
-        //between minOFF and maxOFF
-        this.repeat = Math.min(Math.max(repeat, MIN_REPEAT), MAX_REPEAT);
-    }
-
-    public byte[] getProtocol() {
-        return protocol;
-    }
-
-    public void setProtocol(byte[] protocol) {
-        this.protocol = protocol;
-    }
-
-
-    public boolean isCustomPattern() {
-        return isCustomPattern;
-    }
-
-    private void setCustomPattern(boolean customPattern) {
-        this.isCustomPattern = customPattern;
-    }
-
-
-    public boolean isLedEnabled() {
-        return !Protocol.VIBRATION_WITHOUT_LED.equals(this.getProtocol());
-    }
-
-    private int roundTo(int i, int r) {
+    private static int roundTo(int i, int r) {
         if (r == 0) return 0;
         return r * (Math.round(i / r));
     }
 
-    private void normalVibrate(BluetoothIO io) {
-        Log.d(TAG, "Custom Normal Vibration : " + this);
-        for (int i = 0; i < this.getRepeat(); i++) {
-            Log.d(TAG, "run: Custom Vibration no : " + i);
-            try {
-                io.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, this.getProtocol());
-                Thread.sleep(this.getOnTime());
-                io.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
-                Thread.sleep(this.getOffTime());
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+    /**
+     * Generate a repetative vibration pattern
+     * @param vibrationOnDuration The duration in milliseconds for which the band vibrates
+     * @param vibrationOffDuration The duration in milliseconds between two consecutive vibrations
+     * @param repeat Number of times the vibration repeats
+     * @return Integer Array representaing vibration pattern
+     */
+    public static final Integer[] generatePattern(int vibrationOnDuration,int vibrationOffDuration,int repeat){
+        int plen = repeat*2;
+        Integer customPattern[] = new Integer[plen];
+        for (int i = 0; i < plen-1; i+=2) {
+            Log.d(TAG, "vibrateBand: @"+i);
+            customPattern[i] = roundTo(vibrationOnDuration,ROUNDER);
+            if(i==plen-1)
+                customPattern[i+1] = 0;
+            else
+                customPattern[i+1] = roundTo(vibrationOffDuration,ROUNDER);
+        }
+        Log.d(TAG, "generatePattern: "+Arrays.toString(customPattern));
+        return customPattern;
+    }
+
+    /**
+     * Generate a CustomVibration pattern {vibrateOn,vibrateOff,...} from String where vibrateOn and vibrateOff are in milliseconds
+     * The band vibrates for "vibrateOn" milliseconds and waits for "vibrateOff" miliseconds and then repeats until the pattern lasts
+     * @param pattern The pattern which consists of on and off values
+     * @param delimiter Regex of the delimiter used to split the string. Default is ","
+     * @return Integer Array representing vibration pattern
+     */
+    public static final Integer[] generatePattern(String pattern,String delimiter){
+        Integer []customPattern;
+        pattern = pattern.trim();
+
+        if (pattern == null || pattern.length() == 0) {
+            customPattern = new Integer[]{};
+        } else {
+            String[] split = pattern.split(delimiter==null?",":delimiter);
+            int patternLength = split.length;
+            customPattern = new Integer[patternLength];
+            for (int i = 0; i < patternLength; i++) {
+                customPattern[i] = roundTo(Integer.parseInt(split[i]),ROUNDER);
             }
         }
-    }
-
-    private void patternVibrate(BluetoothIO io) {
-        Log.d(TAG, "Custom Pattern Vibration : " + this);
-        Log.d(TAG, "patternVibrate: " + Arrays.toString(customPattern));
-        for (int i = 0; i < customPattern.length - 1; i++) {
-            Log.d(TAG, "run: Vibration ON Time : " + customPattern[i]);
-            try {
-                io.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, this.getProtocol());
-                Thread.sleep(customPattern[i]);
-                io.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
-                Thread.sleep(customPattern[i + 1]);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    @NonNull
-    @Override
-    public String toString() {
-        String l = this.isLedEnabled() ? "LED_ON" : "LED_OFF";
-        return "(" + getOnTime() + "," + getOffTime() + "," + getRepeat() + "," + l + ")";
-    }
-
-    @Override
-    public void run() {
-//        if (isCustomPattern(new BluetoothIO())) patternVibrate();
-//        else normalVibrate();
+        Log.d(TAG, "generatePattern: "+Arrays.toString(customPattern));
+        return customPattern;
     }
 
 }

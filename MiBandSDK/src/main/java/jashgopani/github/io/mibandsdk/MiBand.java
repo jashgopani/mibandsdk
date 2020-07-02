@@ -224,56 +224,47 @@ public class MiBand implements BluetoothListener {
     }
 
     /**
-     * Starts the vibration based on profile
+     * Get Vibration data to be written based on LED Requirements
      * @param mode
      * @return
      */
-    public Observable<Void> startVibration(final VibrationMode mode){
-        return Observable.create(emitter -> {
-            byte[] protocol = null;
-            switch (mode){
-                case VIBRATION_WITH_LED:
-                    protocol = Protocol.VIBRATION_WITH_LED;
-                case VIBRATION_WITHOUT_LED:
-                    protocol = Protocol.VIBRATION_WITHOUT_LED;
-                case VIBRATION_10_TIMES_WITH_LED:
-                    protocol = Protocol.VIBRATION_10_TIMES_WITH_LED;
-                default:
-                    Log.d(TAG, "vibrateBand: Mode doesn't exist");
-            }
-            startVibrationSubject.subscribe(new ObserverWrapper(emitter));
-            bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION,Profile.UUID_CHAR_VIBRATION,protocol);
-        });
-    }
+    private byte[] getVibrationProtocol(VibrationMode mode){
+        if (mode==null)return Protocol.VIBRATION_WITH_LED;
 
-    public void startVibration(int[] p,int repeat){
-        Log.d(TAG, "startVibration: Custom Vibration ");
-        ArrayList<int[]> tuple = new ArrayList<>();
-        for (int i = 0; i < repeat; i++) {
-            tuple.add(p);
+        switch (mode){
+            case VIBRATION_WITHOUT_LED:
+                return Protocol.VIBRATION_WITHOUT_LED;
+            case VIBRATION_10_TIMES_WITH_LED:
+                return Protocol.VIBRATION_10_TIMES_WITH_LED;
+            default:
+                return Protocol.VIBRATION_WITH_LED;
         }
-        long mt1 = System.nanoTime();
-        System.out.println("Started at "+mt1);
-        Observable.fromIterable(tuple).observeOn(Schedulers.io()).subscribeOn(Schedulers.computation()).subscribe(
-                t->{
-                    System.out.println(Thread.currentThread());
-                    bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.VIBRATION_WITH_LED);
-                    Thread.sleep(t[0]);
-                    bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
-                    Thread.sleep(t[1]);
-                    System.out.println();
-                },
-                e->e.printStackTrace(),
-                ()->{
-                    long mt2 = System.nanoTime();
-                    double mtdiff = (mt2-mt1)/1e6;
-                    System.out.println("Completed at "+mt2);
-                    System.out.println("Completed in "+mtdiff+"s");
-                }
-        );
     }
 
-    public void startVibration(Integer[] vpattern){
+    public void vibrate(){
+        vibrate(CustomVibration.DEFAULT,getVibrationProtocol(null));
+    }
+
+    public void vibrate(int repeat){
+        //TODO : implement
+    }
+
+    public void vibrate(Integer[] vpattern){
+        vibrate(vpattern,getVibrationProtocol(null));
+    }
+
+    public void vibrate(Integer[] vpattern,VibrationMode mode){
+        if(vpattern==null)vpattern = CustomVibration.DEFAULT;
+        vibrate(vpattern,getVibrationProtocol(mode));
+    }
+
+
+    /**
+     * Internal vibration method logic
+     * @param vpattern
+     * @param mode
+     */
+    private void vibrate(Integer[] vpattern, byte[] mode){
         // Delay pattern:
         Flowable<Integer> vibrationTimings = Flowable.fromArray(vpattern);    // off
 
@@ -283,9 +274,10 @@ public class MiBand implements BluetoothListener {
         // Zip the two together
         vibrationTimings.zipWith( decision, ( delay, shouldVibrate ) -> Flowable.just(shouldVibrate)//Creating observables of individual (vibrationTime,decision) pair
                 .doOnNext(shouldVibrateValue ->{
-                    Log.d(TAG, "VibrationPattern: "+delay+","+(shouldVibrate?"on":"off"));
+                    if(shouldVibrate)
+                        Log.d(TAG, "VibrationPattern: "+delay);
                     if(shouldVibrateValue)
-                        bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.VIBRATION_WITH_LED);
+                        bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, mode);
                     else
                         bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
                 })//Invoke function based on value
@@ -293,7 +285,8 @@ public class MiBand implements BluetoothListener {
                 //Till here we created multiple single observers, now to combine all in sequence, we use concat map
                 //boolean value which we are emitting is of no use, we're just doing it for the sake of delaying and moving to next value
                 .concatMap( (Flowable<Boolean> shouldVibrate) -> shouldVibrate)
-//                .subscribeOn(Schedulers.computation())
+                .subscribeOn(Schedulers.computation())
+                .observeOn(Schedulers.computation())
                 .ignoreElements()//ignore all the emitted values
                 .subscribe(new CompletableObserver() {
                     @Override
@@ -312,8 +305,6 @@ public class MiBand implements BluetoothListener {
                         e.printStackTrace();
                     }
                 });//wait for the observable to terminate
-
-
     }
 
 
@@ -386,6 +377,7 @@ public class MiBand implements BluetoothListener {
                     Log.d(TAG, "onResult: Read Attempt result Pairing characteristic | current op = "+wasReadOperation);
                     if(Arrays.equals(Protocol.PAIR,characteristicValue)){
                         Log.d(TAG, "onResult: Pairing success");
+                        vibrate(CustomVibration.DEFAULT);
                         pairSubject.onNext(true);
                         pairSubject.onComplete();
                         pairSubject = PublishSubject.create();

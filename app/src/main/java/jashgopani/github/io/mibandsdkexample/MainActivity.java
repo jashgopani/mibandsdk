@@ -57,7 +57,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     private Context context = MainActivity.this;
     private BluetoothAdapter bluetoothAdapter;
     private ToggleButton scanBtn, connectBtn;
-    private Button vibrateBtn,customVibrateBtn,patternVibrateBtn;
+    private Button vibrateBtn,customVibrateBtn, patternTextVibrateBtn;
     private TextView statusTv;
     private Handler handler;
     private boolean isScanning;
@@ -71,7 +71,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     private HashMap<UUID,HashMap<UUID,BluetoothGattCharacteristic>> servicesMap;
     private SeekBar vonSb,voffSb,vrepeatSb;
     private Switch vledSw;
-    CustomVibration customVibration;
     private EditText vpatternEt;
     private MiBand miBand;
     CompositeDisposable disposables;
@@ -132,7 +131,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         connected = false;
         paired = false;
         servicesMap = new HashMap<>();
-        customVibration = new CustomVibration();
         miBand = MiBand.getInstance(context);
         disposables = new CompositeDisposable();
     }
@@ -145,7 +143,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         progressBar = findViewById(R.id.progressBar);
         vibrateBtn = findViewById(R.id.vibrate_btn);
         customVibrateBtn = findViewById(R.id.customVibrate_btn);
-        patternVibrateBtn = findViewById(R.id.vpatternBtn);
+        patternTextVibrateBtn = findViewById(R.id.vpatternBtn);
 
         //seek bars
         vonSb = findViewById(R.id.vonSb);
@@ -162,14 +160,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     private void configureViews() {
         scanRv.setAdapter(scanResultsAdapter);
         scanRv.setLayoutManager(new LinearLayoutManager(context));
-
-        //set min max values of seekbars
-        vonSb.setMax(CustomVibration.MAX_ON);
-        voffSb.setMax(CustomVibration.MAX_OFF);
-        vrepeatSb.setMax(CustomVibration.MAX_REPEAT);
-
-        //set switch
-        vledSw.setChecked(customVibration.isLedEnabled());
     }
 
 
@@ -205,12 +195,9 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
 
         vibrateBtn.setOnClickListener(v -> vibrateBand(VibrationMode.VIBRATION_WITH_LED));
 
-        customVibrateBtn.setOnClickListener(v -> vibrateBand(customVibration));
-
         vonSb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                customVibration.setOnTime(progress);
                 updateUIControls();
             }
 
@@ -228,7 +215,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         voffSb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                customVibration.setOffTime(progress);
                 updateUIControls();
             }
 
@@ -246,7 +232,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         vrepeatSb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                customVibration.setRepeat(progress);
                 updateUIControls();
             }
 
@@ -261,23 +246,15 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
             }
         });
 
-        vledSw.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                customVibration.setProtocol(isChecked? Protocol.VIBRATION_WITH_LED:Protocol.VIBRATION_WITHOUT_LED);
-                updateUIControls();
-            }
+        vledSw.setOnCheckedChangeListener((buttonView, isChecked) -> updateUIControls());
+
+        patternTextVibrateBtn.setOnClickListener(v -> {
+            String pattern = vpatternEt.getText().toString();
+            Log.d(TAG, "onClick: Pattern Vibrate : "+pattern);
+            vibrateBand(pattern==null?"":pattern.trim());
         });
 
-        patternVibrateBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String pattern = vpatternEt.getText().toString();
-                Log.d(TAG, "onClick: Pattern Vibrate : "+pattern);
-                vibrateBand(pattern==null?"":pattern.trim());
-            }
-        });
-
+        customVibrateBtn.setOnClickListener(v->{miBand.startVibration(CustomVibration.generatePattern(vonSb.getProgress(),voffSb.getProgress(),vrepeatSb.getProgress()));});
     }
 
 
@@ -341,24 +318,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     }
 
 
-    private void vibrateBand(CustomVibration customVibration) {
-        int repeat = vrepeatSb.getProgress();
-        int onTime = vonSb.getProgress();
-        int offTime = voffSb.getProgress();
-        int plen = (repeat*2);
-        Integer pattern[] = new Integer[plen];
-        for (int i = 0; i < plen-1; i+=2) {
-            Log.d(TAG, "vibrateBand: @"+i);
-            pattern[i] = onTime;
-            if(i==plen-1)
-            pattern[i+1] = 0;
-            else
-            pattern[i+1] = offTime;
-        }
-        Log.d(TAG, "vibrateBandFromSeekbars: "+Arrays.toString(pattern));
-        miBand.startVibration(pattern);
-    }
-
     private void vibrateBand(String pattern){
         Integer []customPattern;
         if (pattern == null || pattern.length() == 0) {
@@ -405,9 +364,12 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         customVibrateBtn.setClickable(paired);
         customVibrateBtn.setAlpha((paired)?1f:0.2f);
 
-        customVibrateBtn.setText("Custom Vibration\n"+customVibration);
+        customVibrateBtn.setText("Seekbar Vibration\n"+seekbarsString());
         updateStatustv();
-        updateSeekbars();
+    }
+
+    private String seekbarsString(){
+        return "("+vonSb.getProgress()+","+voffSb.getProgress()+","+vrepeatSb.getProgress()+")";
     }
 
     private void updateStatustv() {
@@ -420,12 +382,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
 
     private void updateStatustv(String statusText){
         statusTv.setText(statusText);
-    }
-
-    private void updateSeekbars() {
-        vonSb.setProgress(customVibration.getOnTime());
-        voffSb.setProgress(customVibration.getOffTime());
-        vrepeatSb.setProgress(customVibration.getRepeat());
     }
 
     /**

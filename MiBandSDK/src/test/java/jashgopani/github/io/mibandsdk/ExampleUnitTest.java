@@ -1,9 +1,13 @@
 package jashgopani.github.io.mibandsdk;
 
+import androidx.core.math.MathUtils;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -13,6 +17,7 @@ import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.schedulers.TestScheduler;
+import jashgopani.github.io.mibandsdk.models.CustomVibration;
 
 /**
  * Example local unit test, which will execute on the development machine (host).
@@ -66,6 +71,15 @@ public class ExampleUnitTest {
         double tdiff = (t2-t1)/1e6;
         System.out.println(tdiff);
 
+    }
+
+    @Test
+    public void repeatPattern() throws Exception {
+        int r = 2;
+        int clamp = MathUtils.clamp(21, 0, 2);
+        System.out.println(clamp);
+        Integer[] pattern = CustomVibration.generatePattern(r);
+        Assert.assertEquals(pattern.length,CustomVibration.DEFAULT.length*r);
     }
 
 

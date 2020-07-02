@@ -1,10 +1,17 @@
 package jashgopani.github.io.mibandsdk.models;
 
+import android.drm.DrmErrorEvent;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.res.TypedArrayUtils;
+import androidx.core.math.MathUtils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Stream;
 
 import jashgopani.github.io.mibandsdk.BluetoothIO;
 import jashgopani.github.io.mibandsdk.MiBand;
@@ -31,6 +38,7 @@ public class CustomVibration {
     /**
      * Vibration Patterns
      */
+    public static final Integer[] ONCE = new Integer[]{z,x};
     public static final Integer[] DEFAULT = new Integer[]{z,x,z,x};
     public static final Integer[] LEFT_PULSE = new Integer[]{zzz,xx,z,xx,z,xx};
     public static final Integer[] RIGHT_PULSE = new Integer[]{z,xx,z,xx,zzz,xx};
@@ -38,8 +46,8 @@ public class CustomVibration {
     public static final Integer[] SMILE = new Integer[]{z,x,zzz,x,zzz,x,z,x};
 
     private static int roundTo(int i, int r) {
-        if (r == 0) return 0;
-        return r * (Math.round(i / r));
+        r = Math.max(1,r);
+        return Math.max(r * (Math.round(i / r)),0);
     }
 
     /**
@@ -79,19 +87,32 @@ public class CustomVibration {
             customPattern = new Integer[]{};
         } else {
             String[] split = pattern.split(delimiter==null?",":delimiter);
-            int patternLength = split.length;
+            int patternLength = split.length%2==0?split.length:split.length+1;
             customPattern = new Integer[patternLength];
-            for (int i = 0; i < patternLength; i++) {
+            for (int i = 0; i < split.length; i++) {
                 customPattern[i] = roundTo(Integer.parseInt(split[i]),ROUNDER);
             }
+            if(split.length!=patternLength)
+            customPattern[patternLength-1] = x;
         }
         Log.d(TAG, "generatePattern: "+Arrays.toString(customPattern));
         return customPattern;
     }
 
-    public static final Integer[] generatePattern(int repeat){
-        //TODO : implement
-        return null;
+    /**
+     * Generate a pattern that vibrates {vibrationCount} times
+     * @param vibrationCount The number of times you want to vibrate the band
+     * @return Integer[] array which can be passed to miband.vibrate()
+     */
+    public static final Integer[] generatePattern(int vibrationCount){
+        if(vibrationCount<=0)return new Integer[]{};
+
+        Integer res[] = new Integer[vibrationCount*ONCE.length];
+        for (int i = 0; i < res.length; i+=ONCE.length) {
+            System.arraycopy(ONCE,0,res,i,ONCE.length);
+        }
+        return res;
     }
+
 
 }

@@ -254,7 +254,9 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
             miBand.vibrate(CustomVibration.generatePattern(pattern,","));
         });
 
-        customVibrateBtn.setOnClickListener(v->{miBand.vibrate(CustomVibration.generatePattern(vonSb.getProgress(),voffSb.getProgress(),vrepeatSb.getProgress()));});
+        customVibrateBtn.setOnClickListener(v->{
+            miBand.vibrate(CustomVibration.generatePattern(vonSb.getProgress(),voffSb.getProgress(),vrepeatSb.getProgress()));
+        });
     }
 
 

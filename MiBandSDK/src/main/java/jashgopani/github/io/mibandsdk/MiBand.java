@@ -241,18 +241,33 @@ public class MiBand implements BluetoothListener {
         }
     }
 
+    /**
+     * Vibrates the MIBand with Default Vibration Pattern Once
+     */
     public void vibrate(){
         vibrate(CustomVibration.DEFAULT,getVibrationProtocol(null));
     }
 
+    /**
+     * Vibrates the MiBand {@param} vibrationCount times
+     * @param vibrationCount
+     */
+    public void vibrate(int vibrationCount){
+        vibrate(CustomVibration.generatePattern(vibrationCount));
+    }
+
+    /**
+     * Vibrates the MiBand using DEFAULT vibration with {@param} mode once
+     * @param mode
+     */
     public void vibrate(VibrationMode mode){
         vibrate(CustomVibration.DEFAULT,getVibrationProtocol(mode));
     }
 
-    public void vibrate(int repeat){
-        //TODO : implement
-    }
-
+    /**
+     * Vibrates according to the custom pattern given by the user
+     * @param vpattern
+     */
     public void vibrate(Integer[] vpattern){
         vibrate(vpattern,getVibrationProtocol(null));
     }
@@ -269,6 +284,12 @@ public class MiBand implements BluetoothListener {
      * @param mode
      */
     private void vibrate(Integer[] vpattern, byte[] mode){
+        if(vpattern.length %2 == 1){
+            Integer[] temp = new Integer[vpattern.length+1];
+            System.arraycopy(vpattern,0,temp,0,vpattern.length);
+            temp[vpattern.length]=0;
+            vpattern = temp;
+        }
         // Delay pattern:
         Flowable<Integer> vibrationTimings = Flowable.fromArray(vpattern);    // off
 
@@ -384,6 +405,7 @@ public class MiBand implements BluetoothListener {
                         vibrate(CustomVibration.DEFAULT);
                         pairSubject.onNext(true);
                         pairSubject.onComplete();
+                        Log.d(TAG, "onResult: Current Battery Data : "+getBatteryInfo());
                         pairSubject = PublishSubject.create();
                     }else{
 
@@ -398,6 +420,7 @@ public class MiBand implements BluetoothListener {
             if(Profile.UUID_CHAR_BATTERY.equals(characteristicUUID)){
                 if(characteristicValue.length==10){
                     Log.d(TAG, "onResult: BatteryInfo : "+Arrays.toString(characteristicValue));
+
                 }
             }
 

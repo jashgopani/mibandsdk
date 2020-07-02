@@ -8,6 +8,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
+import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.schedulers.Schedulers;
@@ -21,21 +22,56 @@ import io.reactivex.rxjava3.schedulers.TestScheduler;
 public class ExampleUnitTest {
 
     ArrayList<int[]> tuple = new ArrayList<>();
+    ArrayList<Integer> cp = new ArrayList<>();
+    final TestScheduler scheduler = new TestScheduler();
 
     @Before
-    public void init() {
+    public void init(){
         for(int i=0;i<05;i++){
-            int on = new Random().nextInt(1000);
-            int off = new Random().nextInt(1000);
+            int on = (i+2)*250;
+            int off = (i+1)*250;
+//            int on = new Random().nextInt(1000);
+//            int off = new Random().nextInt(1000);
             tuple.add(new int[]{on,off});
+            cp.add(on);
+            cp.add(off);
             System.out.println(on+","+off);
         }
         System.out.println();
     }
-    @Test
-    public void rxTime() throws Exception {
 
-        final TestScheduler scheduler = new TestScheduler();
+    @Test
+    public void stackOverflow()
+    {
+        long t1 = System.nanoTime();
+
+        // Delay pattern:
+        Flowable<Integer> vibrationTimings = Flowable.fromIterable(cp);    // off
+
+        // Alternating true/false booleans
+        Flowable<Boolean> decision = vibrationTimings.scan(true,( prevOnOff, currentValue ) -> !prevOnOff );   // subsequent values
+
+        // Zip the two together
+        vibrationTimings.zipWith( decision, ( delay, shouldVibrate ) -> Flowable.just(shouldVibrate)//Creating observables of individual (vibrationTime,decision) pair
+                .doOnNext(__ ->System.out.println("onNext : "+shouldVibrate+" | "+Thread.currentThread()))//Invoke function based on value
+                .delay(delay, TimeUnit.MILLISECONDS)) // Delay the value downstream i.e delay calling of onNext Method by the observable
+                //Till here we created multiple single observers, now to combine all in sequence, we use concat map
+                //boolean value which we are emitting is of no use, we're just doing it for the sake of delaying and moving to next value
+                .concatMap( (Flowable<Boolean> shouldVibrate) -> shouldVibrate)
+                .subscribeOn(Schedulers.computation())
+                .ignoreElements()//ignore all the emitted values
+                .blockingAwait();//wait for the observable to terminate
+
+        long t2 = System.nanoTime();
+        double tdiff = (t2-t1)/1e6;
+        System.out.println(tdiff);
+
+    }
+
+
+    @Test
+    public void rxUPTime() throws Exception {
+
 
         long mt1 = System.nanoTime();
         System.out.println("Started at "+mt1);
@@ -85,21 +121,4 @@ public class ExampleUnitTest {
         System.out.println("Completed in "+tdiff);
     }
 
-    @Test
-    public void ltrep1() throws InterruptedException {loopTime();}
-
-    @Test
-    public void rtep2() throws Exception {rxTime();}
-
-    @Test
-    public void ltrep3() throws InterruptedException {loopTime();}
-
-    @Test
-    public void rtep4() throws Exception {rxTime();}
-
-    @Test
-    public void ltrep5() throws InterruptedException {loopTime();}
-
-    @Test
-    public void rtep6() throws Exception {rxTime();}
 }

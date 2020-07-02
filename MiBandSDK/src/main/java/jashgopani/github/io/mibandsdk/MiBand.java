@@ -15,9 +15,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.annotations.NonNull;
+import io.reactivex.rxjava3.core.CompletableObserver;
+import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.ObservableEmitter;
 import io.reactivex.rxjava3.core.ObservableOnSubscribe;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import jashgopani.github.io.mibandsdk.models.BatteryInfo;
@@ -269,6 +272,50 @@ public class MiBand implements BluetoothListener {
                 }
         );
     }
+
+    public void startVibration(Integer[] vpattern){
+        // Delay pattern:
+        Flowable<Integer> vibrationTimings = Flowable.fromArray(vpattern);    // off
+
+        // Alternating true/false booleans
+        Flowable<Boolean> decision = vibrationTimings.scan(true,( prevOnOff, currentValue ) -> !prevOnOff );   // subsequent values
+
+        // Zip the two together
+        vibrationTimings.zipWith( decision, ( delay, shouldVibrate ) -> Flowable.just(shouldVibrate)//Creating observables of individual (vibrationTime,decision) pair
+                .doOnNext(shouldVibrateValue ->{
+                    Log.d(TAG, "VibrationPattern: "+delay+","+(shouldVibrate?"on":"off"));
+                    if(shouldVibrateValue)
+                        bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.VIBRATION_WITH_LED);
+                    else
+                        bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
+                })//Invoke function based on value
+                .delay(delay, TimeUnit.MILLISECONDS)) // Delay the value downstream i.e delay calling of onNext Method by the observable
+                //Till here we created multiple single observers, now to combine all in sequence, we use concat map
+                //boolean value which we are emitting is of no use, we're just doing it for the sake of delaying and moving to next value
+                .concatMap( (Flowable<Boolean> shouldVibrate) -> shouldVibrate)
+//                .subscribeOn(Schedulers.computation())
+                .ignoreElements()//ignore all the emitted values
+                .subscribe(new CompletableObserver() {
+                    @Override
+                    public void onSubscribe(@NonNull Disposable d) {
+                        Log.d(TAG, "onSubscribe: MiBand >> Vibration Started on "+Thread.currentThread());
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        Log.d(TAG, "onComplete: MiBand >> Vibration Complete");
+                    }
+
+                    @Override
+                    public void onError(@NonNull Throwable e) {
+                        Log.d(TAG, "onError: MiBand >> Vibration Error");
+                        e.printStackTrace();
+                    }
+                });//wait for the observable to terminate
+
+
+    }
+
 
     /**
      * Stop vibration

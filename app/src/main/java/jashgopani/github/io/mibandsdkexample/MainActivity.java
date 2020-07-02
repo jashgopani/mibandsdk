@@ -30,8 +30,12 @@ import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
@@ -270,7 +274,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
             public void onClick(View v) {
                 String pattern = vpatternEt.getText().toString();
                 Log.d(TAG, "onClick: Pattern Vibrate : "+pattern);
-                vibrateBand(new CustomVibration(pattern));
+                vibrateBand(pattern==null?"":pattern.trim());
             }
         });
 
@@ -338,9 +342,38 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
 
 
     private void vibrateBand(CustomVibration customVibration) {
-        int p[] = new int[]{vonSb.getProgress(),voffSb.getProgress()};
         int repeat = vrepeatSb.getProgress();
-        miBand.startVibration(p,repeat);
+        int onTime = vonSb.getProgress();
+        int offTime = voffSb.getProgress();
+        int plen = (repeat*2);
+        Integer pattern[] = new Integer[plen];
+        for (int i = 0; i < plen-1; i+=2) {
+            Log.d(TAG, "vibrateBand: @"+i);
+            pattern[i] = onTime;
+            if(i==plen-1)
+            pattern[i+1] = 0;
+            else
+            pattern[i+1] = offTime;
+        }
+        Log.d(TAG, "vibrateBandFromSeekbars: "+Arrays.toString(pattern));
+        miBand.startVibration(pattern);
+    }
+
+    private void vibrateBand(String pattern){
+        Integer []customPattern;
+        if (pattern == null || pattern.length() == 0) {
+            customPattern = new Integer[]{350,100,200};
+        } else {
+            String[] split = pattern.split(",");
+            //if last value is off-time then it is useless
+            int patternLength = split.length % 2 == 0 ? split.length : (split.length - 1);
+            customPattern = new Integer[patternLength];
+            for (int i = 0; i < patternLength; i++) {
+                customPattern[i] = Integer.parseInt(split[i]);
+            }
+        }
+
+        miBand.startVibration(customPattern);
     }
 
     private void vibrateBand(VibrationMode mode) {
@@ -515,6 +548,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        disconnectAndUnpair();
         disposables.clear();
     }
 

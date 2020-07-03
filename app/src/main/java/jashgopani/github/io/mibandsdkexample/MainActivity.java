@@ -193,7 +193,10 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
                 disconnectAndUnpair();
         });
 
-        vibrateBtn.setOnClickListener(v -> miBand.vibrate(VibrationMode.VIBRATION_WITH_LED));
+        vibrateBtn.setOnClickListener(v -> {
+            miBand.vibrate(VibrationMode.VIBRATION_WITH_LED);
+//                startActivity(new Intent(MainActivity.this,Dummy.class));
+        });
 
         vonSb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override

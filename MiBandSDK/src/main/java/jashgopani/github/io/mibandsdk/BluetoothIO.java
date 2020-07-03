@@ -31,7 +31,7 @@ public class BluetoothIO extends BluetoothGattCallback {
     //this is a list of all the active characteristic-listeners
     private HashMap<UUID, String> notifyListeners;
 
-    public BluetoothIO(BluetoothListener listener) {
+    protected BluetoothIO(BluetoothListener listener) {
         this.listener = listener;
         this.notifyListeners = new HashMap<>();
     }
@@ -42,14 +42,14 @@ public class BluetoothIO extends BluetoothGattCallback {
      * @param context
      * @param device
      */
-    public void connect(Context context, BluetoothDevice device) {
+    protected void connect(Context context, BluetoothDevice device) {
         device.connectGatt(context, false, this);
     }
 
     /**
      * Disconnect remote BLE Device
      */
-    public void disconnect() {
+    protected void disconnect() {
         checkConnectionState();
         bluetoothGatt.disconnect();
         Log.d(TAG, "disconnect: Called Disconnect");
@@ -61,8 +61,9 @@ public class BluetoothIO extends BluetoothGattCallback {
      *
      * @return A device which is connected else null
      */
-    public BluetoothDevice getConnectedDevice() {
-        return bluetoothGatt.getDevice();
+    protected BluetoothDevice getConnectedDevice() {
+        //check if gatt is null or not
+        return bluetoothGatt==null?null:bluetoothGatt.getDevice();
     }
 
     /**
@@ -82,7 +83,7 @@ public class BluetoothIO extends BluetoothGattCallback {
      * @param characteristicUUID UUID of characterictic under serviceUUID
      * @param value              Value to write
      */
-    public void writeCharacteristic(UUID serviceUUID, UUID characteristicUUID, byte[] value) {
+    protected void writeCharacteristic(UUID serviceUUID, UUID characteristicUUID, byte[] value) {
         checkConnectionState();
 
         BluetoothGattService service = bluetoothGatt.getService(serviceUUID);
@@ -112,7 +113,7 @@ public class BluetoothIO extends BluetoothGattCallback {
      * @param serviceUUID
      * @param characteristicUUID
      */
-    public void readCharacteristic(UUID serviceUUID, UUID characteristicUUID) {
+    protected void readCharacteristic(UUID serviceUUID, UUID characteristicUUID) {
         checkConnectionState();
         BluetoothGattService service = bluetoothGatt.getService(serviceUUID);
         if (service != null) {
@@ -135,7 +136,7 @@ public class BluetoothIO extends BluetoothGattCallback {
     /**
      * Read Rssi of remote device
      */
-    public void readRssi() {
+    protected void readRssi() {
         checkConnectionState();
         boolean result = bluetoothGatt.readRemoteRssi();
         if (!result) {
@@ -150,7 +151,7 @@ public class BluetoothIO extends BluetoothGattCallback {
      * @param characteristicUUID
      * @param listener           the byte[] data of characterictic which we want to listen to..
      */
-    public void setNotifyListeners(UUID serviceUUID, UUID characteristicUUID, String listener) {
+    protected void setNotifyListeners(UUID serviceUUID, UUID characteristicUUID, String listener) {
         checkConnectionState();
 
         BluetoothGattService service = bluetoothGatt.getService(serviceUUID);
@@ -178,7 +179,7 @@ public class BluetoothIO extends BluetoothGattCallback {
      * @param characteristicUUID
      * @param listener
      */
-    public void removeNotifyListener(UUID serviceUUID, UUID characteristicUUID, String listener){
+    protected void removeNotifyListener(UUID serviceUUID, UUID characteristicUUID, String listener){
         checkConnectionState();
 
         BluetoothGattService service = bluetoothGatt.getService(serviceUUID);
@@ -200,7 +201,7 @@ public class BluetoothIO extends BluetoothGattCallback {
         }
     }
 
-    private void checkAvailableServices(){
+    protected void checkAvailableServices(){
         Log.d(TAG, "\ncheckAvailableServices: START *******************************************************\n");
         for(BluetoothGattService s : bluetoothGatt.getServices()){
             System.out.println("Service UUID : "+s.getUuid());

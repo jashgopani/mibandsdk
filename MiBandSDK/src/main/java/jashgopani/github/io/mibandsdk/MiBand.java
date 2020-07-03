@@ -214,12 +214,10 @@ public class MiBand implements BluetoothListener {
     }
 
     public Observable<BatteryInfo> getBatteryInfo(){
-        return Observable.create(new ObservableOnSubscribe<BatteryInfo>() {
-            @Override
-            public void subscribe(@NonNull ObservableEmitter<BatteryInfo> emitter) throws Throwable {
-                batteryInfoSubject.subscribe(new ObserverWrapper(emitter));
-                bluetoothIo.readCharacteristic(Profile.UUID_SERVICE_MILI,Profile.UUID_CHAR_BATTERY);
-            }
+        return Observable.create(emitter -> {
+            Log.d(TAG, "getBatteryInfo: Requested Log");
+            batteryInfoSubject.subscribe(new ObserverWrapper(emitter));
+            bluetoothIo.readCharacteristic(Profile.UUID_SERVICE_MILI,Profile.UUID_CHAR_BATTERY);
         });
     }
 
@@ -418,9 +416,12 @@ public class MiBand implements BluetoothListener {
 
             //handle battery info result
             if(Profile.UUID_CHAR_BATTERY.equals(characteristicUUID)){
-                if(characteristicValue.length==10){
+                Log.d(TAG, "onResult: BATTERY RESULTS RECEIVED");
+                if(true){
                     Log.d(TAG, "onResult: BatteryInfo : "+Arrays.toString(characteristicValue));
-
+                    BatteryInfo batteryInfo = BatteryInfo.fromByteData(characteristicValue);
+                    batteryInfoSubject.onNext(batteryInfo);
+                    Log.d(TAG, "onResult: Battery Info : "+batteryInfo);
                 }
             }
 

@@ -20,7 +20,6 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
@@ -30,12 +29,8 @@ import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.UUID;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
@@ -45,7 +40,6 @@ import io.reactivex.rxjava3.functions.Consumer;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import jashgopani.github.io.mibandsdk.MiBand;
 import jashgopani.github.io.mibandsdk.models.CustomVibration;
-import jashgopani.github.io.mibandsdk.models.Protocol;
 import jashgopani.github.io.mibandsdk.models.VibrationMode;
 import jashgopani.github.io.mibandsdkexample.adapters.ScanResultsAdapter;
 
@@ -169,18 +163,20 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
             Log.d(TAG, "Find Device Btn : "+isChecked);
             //change the scanning status
             isScanning = isChecked;
-
             if(isChecked){
+                deviceArrayList.clear();
+                addressHashSet.clear();
+
                 //subscribe to scanCallbacks observer
                 disposables.add(miBand.startScan(SCAN_PERIOD)
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe(handleScanResult(),handleScanError(), handleScanComplete()));
+                        .subscribe(handleScanNext(),handleScanError(), handleScanComplete()));
             }else {
                 disposables.add(miBand.stopScan()
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe(handleScanResult(),handleScanError()));
+                        .subscribe(handleScanNext(),handleScanError()));
             }
             updateUIControls();
         });
@@ -268,7 +264,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         toast("Connecting...");
         updateUIControls();
         updateStatustv("Connecting...");
-        deviceArrayList.clear();
         scanResultsAdapter.updateList(deviceArrayList);
         disposables.add(miBand.connect(currentDevice)
                 .subscribeOn(Schedulers.io())
@@ -280,7 +275,6 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     private void disconnectAndUnpair() {
         updateUIControls();
         updateStatustv("Disconnecting...");
-        deviceArrayList.clear();
         scanResultsAdapter.updateList(deviceArrayList);
         disposables.add(miBand.disconnect()
                 .subscribeOn(Schedulers.io())
@@ -316,6 +310,10 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
                         },
                         () -> {
                             toast(paired?"Paired Successfully":"Device not Paired");
+                            if(paired){
+                                setResult(RESULT_OK);
+                                finish();
+                            }
                             updateUIControls();
                         }
                 )
@@ -420,7 +418,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
      * Handle each device detected while scanning ble devices
      * @return ScanResult : It is the result given by BLE ScanCallback Use getDevice method to handle
      */
-    private Consumer<? super ScanResult> handleScanResult() {
+    private Consumer<? super ScanResult> handleScanNext() {
         return new Consumer<ScanResult>() {
             @Override
             public void accept(ScanResult result) throws Throwable {
@@ -487,5 +485,14 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         disposables.clear();
     }
 
-
+    @Override
+    public void onBackPressed() {
+        if(paired){
+            setResult(RESULT_OK);
+            Log.d(TAG, "onBackPressed: "+miBand.getDevice());
+            finish();
+        }else{
+            Toast.makeText(MainActivity.this, "You need to pair device first", Toast.LENGTH_SHORT).show();
+        }
+    }
 }

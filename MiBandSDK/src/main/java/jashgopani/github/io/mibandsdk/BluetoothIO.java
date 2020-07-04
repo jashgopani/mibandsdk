@@ -269,11 +269,12 @@ public class BluetoothIO extends BluetoothGattCallback {
     @Override
     public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
         super.onConnectionStateChange(gatt, status, newState);
-        if(newState == BluetoothProfile.STATE_CONNECTED){
+        if(newState == BluetoothProfile.STATE_CONNECTED || newState == BluetoothProfile.STATE_CONNECTING){
+            Log.d(TAG, "onConnectionStateChange: STATE_CONNECTED");
             gatt.discoverServices();
         }else {
             Log.d(TAG, "onConnectionStateChange: Disconnecting and closing connection");
-            gatt.close();
+            bluetoothGatt.close();
             listener.onDisconnected();
         }
     }
@@ -283,6 +284,7 @@ public class BluetoothIO extends BluetoothGattCallback {
         super.onServicesDiscovered(gatt, status);
         if(status == BluetoothGatt.GATT_SUCCESS){
             bluetoothGatt = gatt;
+            Log.d(TAG, "onServicesDiscovered: Gatt is set "+gatt+" | "+bluetoothGatt);
             checkAvailableServices();
             listener.onConnectionEstablished();
         }else{

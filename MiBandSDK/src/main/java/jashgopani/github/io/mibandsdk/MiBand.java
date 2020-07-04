@@ -41,7 +41,7 @@ public class MiBand implements BluetoothListener {
     private static MiBand miBand = null;
 
     //for interacting with remote device
-    private BluetoothIO bluetoothIo = new BluetoothIO(this);
+    private BluetoothIO bluetoothIo;
 
     private PublishSubject<Boolean> connectionSubject;
     private PublishSubject<Integer> rssiSubject;
@@ -58,6 +58,7 @@ public class MiBand implements BluetoothListener {
 
     private MiBand(Context c){
         this.context = c;
+        bluetoothIo = new BluetoothIO(this);
         connectionSubject = PublishSubject.create();
         rssiSubject = PublishSubject.create();
         batteryInfoSubject= PublishSubject.create();
@@ -71,7 +72,13 @@ public class MiBand implements BluetoothListener {
     }
 
     public static MiBand getInstance(Context c){
-        return (miBand==null)?new MiBand(c):miBand;
+        if(miBand==null){
+            miBand = new MiBand(c);
+            Log.d(TAG, "getInstance: New Band will be created for : "+c);
+        }else{
+            Log.d(TAG, "getInstance: Already Instantiated");
+        }
+        return miBand;
     }
 
     public final BluetoothDevice getDevice() {

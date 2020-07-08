@@ -12,4 +12,5 @@
     <string name="vibrate_off_time">off time(millis)</string>
     <string name="vibrate_repeat">Repeat Pattern</string>
     <string name="vibrate_led">LED on/off</string>
+    <string name="lastUpdated">Last Updated : </string>
 </resources>

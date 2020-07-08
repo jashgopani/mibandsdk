@@ -8,7 +8,6 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
@@ -16,7 +15,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -28,10 +26,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Calendar;
 import java.util.HashSet;
-import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
@@ -52,17 +51,15 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     private BluetoothAdapter bluetoothAdapter;
     private ToggleButton scanBtn, connectBtn;
     private Button vibrateBtn,customVibrateBtn, patternTextVibrateBtn;
-    private TextView statusTv;
-    private Handler handler;
+    private TextView statusTv,batteryLevelTv,batteryStatusTv,batteryLastUpdatedTv;
     private boolean isScanning;
-    private HashSet<String> addressHashSet;
+    private HashSet<BluetoothDevice> addressHashSet;
     private ArrayList<BluetoothDevice> deviceArrayList;
     private ProgressBar progressBar;
     private RecyclerView scanRv;
     private ScanResultsAdapter scanResultsAdapter;
     private BluetoothDevice currentDevice;
-    private boolean connected,paired;
-    private HashMap<UUID,HashMap<UUID,BluetoothGattCharacteristic>> servicesMap;
+    private boolean paired;
     private SeekBar vonSb,voffSb,vrepeatSb;
     private Switch vledSw;
     private EditText vpatternEt;
@@ -122,10 +119,8 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         bluetoothAdapter = bluetoothManager.getAdapter();
         scanResultsAdapter = new ScanResultsAdapter(deviceArrayList, this);
-        connected = false;
-        paired = false;
-        servicesMap = new HashMap<>();
         miBand = MiBand.getInstance(context);
+        paired = miBand.getDevice()==null?false:true;
         disposables = new CompositeDisposable();
     }
 
@@ -133,6 +128,9 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         scanBtn = findViewById(R.id.scan_btn);
         connectBtn = findViewById(R.id.connect_btn);
         statusTv = findViewById(R.id.status_tv);
+        batteryLevelTv = findViewById(R.id.batteryLevelTv);
+        batteryStatusTv = findViewById(R.id.batteryStatusTv);
+        batteryLastUpdatedTv = findViewById(R.id.batteryLastUpdatedTv);
         scanRv = findViewById(R.id.scan_rv);
         progressBar = findViewById(R.id.progressBar);
         vibrateBtn = findViewById(R.id.vibrate_btn);
@@ -159,13 +157,13 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
 
     private void setEventListeners() {
         //scans nearby BLE devices and stops scanning in SCAN_PERIOD time
-        scanBtn.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        scanBtn.setOnClickListener((buttonView) -> {
+            boolean isChecked = scanBtn.isChecked();
             Log.d(TAG, "Find Device Btn : "+isChecked);
             //change the scanning status
             isScanning = isChecked;
             if(isChecked){
-                deviceArrayList.clear();
-                addressHashSet.clear();
+                resetAdapterData();
 
                 //subscribe to scanCallbacks observer
                 disposables.add(miBand.startScan(SCAN_PERIOD)
@@ -182,11 +180,15 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         });
 
         //connects to the selected device
-        connectBtn.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        connectBtn.setOnClickListener((buttonView) -> {
+            boolean isChecked = connectBtn.isChecked();
+            updateUIControls();
             if(isChecked)
                 connectAndPair();
-            else
+            else{
+                miBand.vibrate(CustomVibration.LONG);
                 disconnectAndUnpair();
+            }
         });
 
         vibrateBtn.setOnClickListener(v -> {
@@ -264,7 +266,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         toast("Connecting...");
         updateUIControls();
         updateStatustv("Connecting...");
-        scanResultsAdapter.updateList(deviceArrayList);
+        resetAdapterData();
         disposables.add(miBand.connect(currentDevice)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -272,10 +274,28 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         updateUIControls();
     }
 
+    private void refreshBatteryInfo(){
+        miBand.getBatteryInfo(1, TimeUnit.MINUTES,false)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(info->{
+                    Log.d(TAG, "refreshBatteryInfo: "+info);
+                    batteryLevelTv.setText(String.valueOf(info.getLevel()));
+                    batteryStatusTv.setText(info.getStatus());
+                    Calendar cal = Calendar.getInstance();
+                    SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+                    batteryLastUpdatedTv.setText(getResources().getString(R.string.lastUpdated)+sdf.format(cal.getTime()));
+                },err->{
+                    toast(err.getMessage());
+                    err.printStackTrace();
+                },()->{
+                    Log.d(TAG, "getBatteryInfo: onComplete");
+                });
+    }
+
     private void disconnectAndUnpair() {
         updateUIControls();
         updateStatustv("Disconnecting...");
-        scanResultsAdapter.updateList(deviceArrayList);
         disposables.add(miBand.disconnect()
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -310,10 +330,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
                         },
                         () -> {
                             toast(paired?"Paired Successfully":"Device not Paired");
-                            if(paired){
-                                setResult(RESULT_OK);
-                                finish();
-                            }
+                            if(paired) refreshBatteryInfo();
                             updateUIControls();
                         }
                 )
@@ -330,8 +347,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         scanBtn.setAlpha(scanBtn.isClickable() ? 1f : 0.2f);
         if(!paired)scanBtn.setChecked(isScanning);
 
-        statusTv.setTextColor(isScanning ? Color.LTGRAY : deviceArrayList.size() > 0 ? Color.GREEN : Color.RED);
-
+        statusTv.setTextColor(isScanning ? Color.LTGRAY : deviceArrayList.size() > 0 ? Color.BLUE :paired?Color.GREEN:Color.RED);
         connectBtn.setClickable(!isScanning && currentDevice!=null);
         connectBtn.setAlpha(connectBtn.isClickable() ? 1f : 0.2f);
 
@@ -359,6 +375,12 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
 
     private void updateStatustv(String statusText){
         statusTv.setText(statusText);
+    }
+
+    private void resetAdapterData() {
+        addressHashSet.clear();
+        deviceArrayList.clear();
+        scanResultsAdapter.updateList(deviceArrayList);
     }
 
     /**
@@ -419,18 +441,15 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
      * @return ScanResult : It is the result given by BLE ScanCallback Use getDevice method to handle
      */
     private Consumer<? super ScanResult> handleScanNext() {
-        return new Consumer<ScanResult>() {
-            @Override
-            public void accept(ScanResult result) throws Throwable {
-                //this method handles the scan results
-                BluetoothDevice device = result.getDevice();
-                if (addressHashSet.add(device.getAddress())) {
-                    deviceArrayList.add(device);
-                    String st = "Found " + deviceArrayList.size() + " devices";
-                    statusTv.setText(st);
-                    Log.d(TAG, "leScanCallBack: New device added : " + device.getAddress());
-                    scanResultsAdapter.updateList(deviceArrayList);
-                }
+        return (Consumer<ScanResult>) result -> {
+            //this method handles the scan results
+            BluetoothDevice device = result.getDevice();
+            if (addressHashSet.add(device)) {
+                System.out.println("dbz "+device+" is new");
+                deviceArrayList.add(device);
+                String st = "Found " + deviceArrayList.size() + " devices";
+                statusTv.setText(st);
+                scanResultsAdapter.updateList(deviceArrayList);
             }
         };
     }
@@ -483,16 +502,5 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         super.onDestroy();
         disconnectAndUnpair();
         disposables.clear();
-    }
-
-    @Override
-    public void onBackPressed() {
-        if(paired){
-            setResult(RESULT_OK);
-            Log.d(TAG, "onBackPressed: "+miBand.getDevice());
-            finish();
-        }else{
-            Toast.makeText(MainActivity.this, "You need to pair device first", Toast.LENGTH_SHORT).show();
-        }
     }
 }

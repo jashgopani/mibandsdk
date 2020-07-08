@@ -1,188 +1,240 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    tools:context=".MainActivity">
+    android:layout_height="wrap_content">
 
-    <GridLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:columnCount="2">
-
-        <TextView
-            android:id="@+id/status_tv"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="2"
-            android:layout_columnWeight="2"
-            android:text="@string/status0"
-            android:textAlignment="center"
-            android:textSize="24dp" />
-
-        <ToggleButton
-            android:id="@+id/scan_btn"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:textOff="@string/start_scan"
-            android:textOn="@string/stop_scan" />
-
-
-        <ToggleButton
-            android:id="@+id/connect_btn"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:alpha="0.2"
-            android:clickable="false"
-            android:textOff="@string/connect_band"
-            android:textOn="@string/disconnect_band"
-
-            />
-
-        <Button
-            android:id="@+id/vibrate_btn"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:alpha="0.2"
-            android:text="@string/vibrate_band" />
-
-
-        <Button
-            android:id="@+id/customVibrate_btn"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:alpha="0.2"
-            android:text="Custom Vibration" />
-
-        <!--   Custom vibration controls     -->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="2"
-            android:layout_columnWeight="1"
-            android:background="@android:color/holo_blue_bright"
-            android:text="Custom vibration settings"
-            android:textAlignment="center"
-            android:textStyle="bold" />
-        <!-- On time control -->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:text="@string/vibrate_on_time" />
-
-        <SeekBar
-            android:id="@+id/vonSb"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:progressTint="@android:color/holo_green_light"
-            android:thumbTint="@android:color/holo_green_dark"
-            android:max="1000"
-            android:progress="300" />
-        <!--  Off time control   -->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:text="@string/vibrate_off_time" />
-
-        <SeekBar
-            android:id="@+id/voffSb"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:thumbTint="@android:color/holo_red_dark"
-            android:progressTint="@android:color/holo_red_light"
-            android:max="1000"
-            android:progress="300" />
-
-        <!--Repeat control seekbar-->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:text="@string/vibrate_repeat" />
-
-        <SeekBar
-            android:id="@+id/vrepeatSb"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:progressTint="@android:color/holo_orange_light"
-            android:thumbTint="@android:color/holo_orange_dark"
-            style="@style/Widget.AppCompat.SeekBar.Discrete"
-            android:layout_columnWeight="1"
-            android:max="10"
-            android:progress="3" />
-
-
-        <!--Repeat control seekbar-->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:text="@string/vibrate_led" />
-
-        <Switch
-            android:id="@+id/vledSw"
-            android:layout_gravity="center_horizontal"
-            android:textAlignment="center"
-            android:layout_width="wrap_content"
-            android:checked="false"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:thumbTint="@android:color/holo_purple"
-            />
-        <!-- Custom pattern -->
-        <EditText
-            android:foregroundTint="@android:color/holo_purple"
-            android:layout_width="0dp"
-            android:layout_columnWeight="1"
-            android:layout_columnSpan="1"
-            android:hint="on off on off vibration pattern"
-            android:enabled="true"
-            android:saveEnabled="true"
-            android:layout_height="wrap_content"
-            android:id="@+id/vpatternEt"
-            />
-
-        <Button
-            android:id="@+id/vpatternBtn"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_columnSpan="1"
-            android:layout_columnWeight="1"
-            android:text="@string/vibrate_band" />
-    </GridLayout>
-
-    <ProgressBar
-        android:id="@+id/progressBar"
-        style="@style/Progress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:visibility="invisible" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/scan_rv"
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scrollbarStyle="outsideOverlay"
-        android:scrollbars="vertical" />
-</LinearLayout>
+        android:orientation="vertical"
+        tools:context=".MainActivity">
+
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2">
+
+            <TextView
+                android:id="@+id/status_tv"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="2"
+                android:layout_columnWeight="2"
+                android:text="@string/status0"
+                android:textAlignment="center"
+                android:textSize="24dp" />
+
+            <ToggleButton
+                android:id="@+id/scan_btn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:textOff="@string/start_scan"
+                android:textOn="@string/stop_scan" />
+
+
+            <ToggleButton
+                android:id="@+id/connect_btn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:alpha="0.2"
+                android:clickable="false"
+                android:textOff="@string/connect_band"
+                android:textOn="@string/disconnect_band"
+
+                />
+
+            <Button
+                android:id="@+id/vibrate_btn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:alpha="0.2"
+                android:text="@string/vibrate_band" />
+
+
+            <Button
+                android:id="@+id/customVibrate_btn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:alpha="0.2"
+                android:text="Custom Vibration" />
+
+            <!--   Custom vibration controls     -->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="2"
+                android:layout_columnWeight="1"
+                android:background="@android:color/holo_blue_bright"
+                android:text="Custom vibration settings"
+                android:textAlignment="center"
+                android:textStyle="bold" />
+            <!-- On time control -->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:text="@string/vibrate_on_time" />
+
+            <SeekBar
+                android:id="@+id/vonSb"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:max="1000"
+                android:progress="300"
+                android:progressTint="@android:color/holo_green_light"
+                android:thumbTint="@android:color/holo_green_dark" />
+            <!--  Off time control   -->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:text="@string/vibrate_off_time" />
+
+            <SeekBar
+                android:id="@+id/voffSb"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:max="1000"
+                android:progress="300"
+                android:progressTint="@android:color/holo_red_light"
+                android:thumbTint="@android:color/holo_red_dark" />
+
+            <!--Repeat control seekbar-->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:text="@string/vibrate_repeat" />
+
+            <SeekBar
+                android:id="@+id/vrepeatSb"
+                style="@style/Widget.AppCompat.SeekBar.Discrete"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:max="10"
+                android:progress="3"
+                android:progressTint="@android:color/holo_orange_light"
+                android:thumbTint="@android:color/holo_orange_dark" />
+
+
+            <!--Repeat control seekbar-->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:text="@string/vibrate_led" />
+
+            <Switch
+                android:id="@+id/vledSw"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_gravity="center_horizontal"
+                android:checked="false"
+                android:textAlignment="center"
+                android:thumbTint="@android:color/holo_purple" />
+            <!-- Custom pattern -->
+            <EditText
+                android:id="@+id/vpatternEt"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:enabled="true"
+                android:foregroundTint="@android:color/holo_purple"
+                android:hint="on off on off vibration pattern"
+                android:saveEnabled="true" />
+
+            <Button
+                android:id="@+id/vpatternBtn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:text="@string/vibrate_band" />
+
+            <!--   Battery Info (Level & Status)     -->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="2"
+                android:layout_columnWeight="1"
+                android:background="@android:color/holo_orange_light"
+                android:text="Battery Info (Level | Status)"
+                android:textAlignment="center"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/batteryLastUpdatedTv"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="2"
+                android:layout_columnWeight="1"
+                android:background="@android:color/holo_orange_light"
+                android:text="@string/lastUpdated"
+                android:textAlignment="center"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/batteryLevelTv"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:text="---"
+                android:textAlignment="center"
+                android:textColor="@android:color/holo_purple"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/batteryStatusTv"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnSpan="1"
+                android:layout_columnWeight="1"
+                android:text="UNKNOWN"
+                android:textAlignment="center"
+                android:textColor="@android:color/holo_red_light"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </GridLayout>
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="@style/Progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:indeterminate="true"
+            android:visibility="invisible" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/scan_rv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbarStyle="outsideOverlay"
+            android:scrollbars="vertical" />
+
+
+    </LinearLayout>
+</ScrollView>

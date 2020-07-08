@@ -44,6 +44,8 @@ public class CustomVibration {
     public static final Integer[] RIGHT_PULSE = new Integer[]{z,xx,z,xx,zzz,xx};
     public static final Integer[] FROWN = new Integer[]{zzz,x,z,x,z,zzz,x};
     public static final Integer[] SMILE = new Integer[]{z,x,zzz,x,zzz,x,z,x};
+    public static final Integer[] ARC = new Integer[]{zz,x,zz,x,zz,x,zz,x};
+    public static final Integer[] LONG = new Integer[]{zzzz,xx};
 
     private static int roundTo(int i, int r) {
         r = Math.max(1,r);
@@ -61,7 +63,6 @@ public class CustomVibration {
         int plen = repeat*2;
         Integer customPattern[] = new Integer[plen];
         for (int i = 0; i < plen-1; i+=2) {
-            Log.d(TAG, "vibrateBand: @"+i);
             customPattern[i] = roundTo(vibrationOnDuration,ROUNDER);
             if(i==plen-1)
                 customPattern[i+1] = 0;
@@ -110,6 +111,41 @@ public class CustomVibration {
         Integer res[] = new Integer[vibrationCount*ONCE.length];
         for (int i = 0; i < res.length; i+=ONCE.length) {
             System.arraycopy(ONCE,0,res,i,ONCE.length);
+        }
+        return res;
+    }
+
+    public static final Integer[] generatePattern(int vibrationCount,int vibrationIntensity){
+        if(vibrationCount<=0)return new Integer[]{};
+        vibrationIntensity = MathUtils.clamp(vibrationIntensity,1,4);
+        if(vibrationIntensity == 1)return generatePattern(vibrationCount);
+
+        int delay = x;
+        int vibration = z;
+        switch (vibrationIntensity){
+            case 2:
+                vibration = zz;
+                break;
+            case 3:
+                vibration =zzz;
+                break;
+            case 4:
+                vibration = zzzz;
+                break;
+            default:
+                vibration = z;
+                delay = x;
+        }
+
+        if(vibrationIntensity > 2 ){
+            //to overlap of vibrations
+            delay = xx;
+        }
+
+        Integer res[] = new Integer[vibrationCount*2];
+        for (int i = 0; i < res.length; i+=ONCE.length) {
+            res[i] = vibration;
+            res[i+1] = delay;
         }
         return res;
     }

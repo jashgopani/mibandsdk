@@ -9,7 +9,6 @@ import android.content.Context;
 import android.bluetooth.le.ScanResult;
 import android.util.Log;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +19,7 @@ import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.ObservableEmitter;
 import io.reactivex.rxjava3.core.ObservableOnSubscribe;
+import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subjects.PublishSubject;
@@ -71,6 +71,11 @@ public class MiBand implements BluetoothListener {
         heartRateSubject = PublishSubject.create();
     }
 
+    /**
+     * Get instance of Miband class. All the functionalities of miband class can be accessed only via this instance.
+     * @param c The current context
+     * @return An instance of Miband class
+     */
     public static MiBand getInstance(Context c){
         if(miBand==null){
             miBand = new MiBand(c);
@@ -81,6 +86,10 @@ public class MiBand implements BluetoothListener {
         return miBand;
     }
 
+    /**
+     * Get the currently connected device.
+     * @return An instance of BluetoothDevice of the connected device else null
+     */
     public final BluetoothDevice getDevice() {
         return this.bluetoothIo.getConnectedDevice();
     }
@@ -89,7 +98,7 @@ public class MiBand implements BluetoothListener {
      * This method returns an Observable of class ScanResult which can be subscribed in order to handle each each result
      * @return Observable<ScanResult>
      */
-    public Observable<ScanResult> startScan(long SCAN_TIMEOUT){
+    public @NonNull Observable<ScanResult> startScan(long SCAN_TIMEOUT){
         //emitter is responsible for emitting values from the observer
         //we call onNext method of emitter to emit a value ; hence we call it in the scanCallback method
 
@@ -103,9 +112,11 @@ public class MiBand implements BluetoothListener {
                     long t1 = System.nanoTime();//for debugging purposes
                     Log.d(TAG, "startScan: ");
                     //This observable is similaer to handler.postDelayed
-                    Observable.defer(() -> Observable.just(1)//1 is just to avoid error / put anything except null
+                    Observable.defer(() -> Observable.empty()//1 is just to avoid error / put anything except null
                             .delay(SCAN_TIMEOUT, TimeUnit.MILLISECONDS))
-                            .doOnNext(ignore -> {
+                            .subscribeOn(Schedulers.io())
+                            .observeOn(Schedulers.io())
+                            .subscribe(item->{},throwable -> {},()->{
                                 //stop emitting values and notify subscribers that emitting is complete
                                 emitter.onComplete();
                                 scanner.stopScan(MiBand.this.getScanCallback(emitter));
@@ -113,8 +124,7 @@ public class MiBand implements BluetoothListener {
                                 long t2 = System.nanoTime();
                                 double tdiff = (t2-t1)/1e6;
                                 Log.d(TAG, "Handle: Stopped BLE Scan after "+tdiff+"s");
-                            })
-                            .subscribe(item->{},throwable -> {},()->{});//ignore onNext,onError,onComplete
+                            });//ignore onNext,onError,onComplete
 
                     //start scanning for ble devices
                     scanner.startScan(MiBand.this.getScanCallback(emitter));
@@ -127,11 +137,12 @@ public class MiBand implements BluetoothListener {
                 emitter.onError(new NullPointerException("Bluetooth Adapter is null"));
             }
         });
+
     }
 
     /**
      * Stops scanning of devices
-     * @return
+     * @return Observable of type ScanResult
      */
     public final Observable<ScanResult> stopScan(){
         return Observable.create(new ObservableOnSubscribe<ScanResult>() {
@@ -156,21 +167,21 @@ public class MiBand implements BluetoothListener {
 
     /**
      * Returns a scan Callback for startScan and stopScan
-     * @param subscriber
+     * @param emitter
      * @return
      */
-    private ScanCallback getScanCallback(final ObservableEmitter subscriber) {
+    private ScanCallback getScanCallback(ObservableEmitter emitter) {
         return new ScanCallback() {
             @Override
             public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
                 super.onScanResult(callbackType, result);
-                subscriber.onNext(result);
+                emitter.onNext(result);
             }
 
             @Override
             public void onScanFailed(int errorCode) {
                 super.onScanFailed(errorCode);
-                subscriber.onError(new Exception("Scan Failed : Error "+errorCode));
+                emitter.onError(new Exception("Scan Failed : Error "+errorCode));
             }
         };
     }
@@ -178,22 +189,19 @@ public class MiBand implements BluetoothListener {
     /**
      * Creates connection between app and BLE device(miband)
      * It is a boolean observable since it emits only boolean values : connection success(true) or failed(false)
-     * @param device
-     * @return
+     * @param device Selected blluetooth device
+     * @return Boolean Observable representing connection status ; the value is true for connection succesful and false for disconnection successful
      */
     public Observable<Boolean> connect(final BluetoothDevice device){
-        return Observable.create(new ObservableOnSubscribe<Boolean>() {
-            @Override
-            public void subscribe(@NonNull ObservableEmitter<Boolean> emitter) throws Throwable {
-                connectionSubject.subscribe(new ObserverWrapper(emitter));
-                bluetoothIo.connect(context,device);
-            }
+        return Observable.create(emitter -> {
+            connectionSubject.subscribe(new ObserverWrapper(emitter));
+            bluetoothIo.connect(context,device);
         });
     }
 
     /**
      * Performs Pairing of device
-     * @return
+     * @return Boolean Observable representing pairing status with the band
      */
     public Observable<Boolean> pair(){
         return Observable.create((ObservableOnSubscribe<Boolean>) emitter -> {
@@ -203,6 +211,10 @@ public class MiBand implements BluetoothListener {
         });
     }
 
+    /**
+     * Disconnect miband instance. Not disconnecting your band may cause issues while scanning for devices next time
+     * @return Boolean Observable that is "false" if disconnection is successful
+     */
     public Observable<Boolean> disconnect(){
         return Observable.create(emitter -> {
             connectionSubject.subscribe(new ObserverWrapper(emitter));
@@ -210,22 +222,33 @@ public class MiBand implements BluetoothListener {
         });
     }
 
+    /**
+     * Get rssi of current device
+     * @return
+     */
     public Observable<Integer> readRssi(){
-        return Observable.create(new ObservableOnSubscribe<Integer>() {
-            @Override
-            public void subscribe(@NonNull ObservableEmitter<Integer> emitter){
-                rssiSubject.subscribe(new ObserverWrapper(emitter));
-                bluetoothIo.readRssi();
-            }
+        return Observable.create(emitter -> {
+            rssiSubject.subscribe(new ObserverWrapper(emitter));
+            bluetoothIo.readRssi();
         });
     }
 
-    public Observable<BatteryInfo> getBatteryInfo(){
-        return Observable.create(emitter -> {
-            Log.d(TAG, "getBatteryInfo: Requested Log");
+    /**
+     * Get Battery Information of Miband.
+     * @return An Instance of BatteryInfo class which is instantiated with the retrieved battery details
+     */
+    public Observable<BatteryInfo> getBatteryInfo(long interval,TimeUnit timeUnit,boolean onlyOnce){
+        @NonNull Observable<Long> first = Observable.just((long)0);
+        @NonNull Observable<Long> repeated = Observable.interval(interval, timeUnit);
+        @NonNull Observable<BatteryInfo> batteryObservable = Observable.create(emitter -> {
             batteryInfoSubject.subscribe(new ObserverWrapper(emitter));
-            bluetoothIo.readCharacteristic(Profile.UUID_SERVICE_MILI,Profile.UUID_CHAR_BATTERY);
+            bluetoothIo.readCharacteristic(Profile.UUID_SERVICE_MILI, Profile.UUID_CHAR_BATTERY);
         });
+
+        if(onlyOnce)
+            return first.flatMap(item->batteryObservable).subscribeOn(Schedulers.io());
+        else
+            return Observable.mergeDelayError(first,repeated).flatMap(count->batteryObservable);
     }
 
     /**
@@ -304,8 +327,6 @@ public class MiBand implements BluetoothListener {
         // Zip the two together
         vibrationTimings.zipWith( decision, ( delay, shouldVibrate ) -> Flowable.just(shouldVibrate)//Creating observables of individual (vibrationTime,decision) pair
                 .doOnNext(shouldVibrateValue ->{
-                    if(shouldVibrate)
-                        Log.d(TAG, "VibrationPattern: "+delay);
                     if(shouldVibrateValue)
                         bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, mode);
                     else
@@ -410,7 +431,6 @@ public class MiBand implements BluetoothListener {
                         vibrate(CustomVibration.DEFAULT);
                         pairSubject.onNext(true);
                         pairSubject.onComplete();
-                        Log.d(TAG, "onResult: Current Battery Data : "+getBatteryInfo());
                         pairSubject = PublishSubject.create();
                     }else{
 
@@ -424,12 +444,16 @@ public class MiBand implements BluetoothListener {
             //handle battery info result
             if(Profile.UUID_CHAR_BATTERY.equals(characteristicUUID)){
                 Log.d(TAG, "onResult: BATTERY RESULTS RECEIVED");
-                if(true){
+                if(characteristicValue.length==10){
                     Log.d(TAG, "onResult: BatteryInfo : "+Arrays.toString(characteristicValue));
                     BatteryInfo batteryInfo = BatteryInfo.fromByteData(characteristicValue);
                     batteryInfoSubject.onNext(batteryInfo);
+                    batteryInfoSubject.onComplete();
                     Log.d(TAG, "onResult: Battery Info : "+batteryInfo);
+                }else {
+                    batteryInfoSubject.onError(new Exception("Unable to get Battery Info"));
                 }
+                batteryInfoSubject = PublishSubject.create();
             }
 
 
@@ -438,11 +462,8 @@ public class MiBand implements BluetoothListener {
         if(Profile.UUID_SERVICE_VIBRATION.equals(serviceUUID)){
             if(Profile.UUID_CHAR_VIBRATION.equals(characteristicUUID)){
                 if(Arrays.equals(characteristicValue,Protocol.STOP_VIBRATION)){
-                    Log.d(TAG, "onResult: Vibration Complete");
                     stopVibrationSubject.onComplete();
                     stopVibrationSubject = PublishSubject.create();
-                }else{
-                    Log.d(TAG, "onResult: Vibration Ongoing : "+Arrays.toString(characteristicValue));
                 }
             }
         }

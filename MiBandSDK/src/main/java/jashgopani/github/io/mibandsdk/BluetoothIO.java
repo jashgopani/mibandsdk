@@ -274,7 +274,6 @@ public class BluetoothIO extends BluetoothGattCallback {
             gatt.discoverServices();
         }else {
             Log.d(TAG, "onConnectionStateChange: Disconnecting and closing connection");
-            bluetoothGatt.close();
             listener.onDisconnected();
         }
     }

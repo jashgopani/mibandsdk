@@ -202,19 +202,14 @@ public class BluetoothIO extends BluetoothGattCallback {
     }
 
     protected void checkAvailableServices(){
-        Log.d(TAG, "\ncheckAvailableServices: START *******************************************************\n");
+        int services=0,characteristics=0;
         for(BluetoothGattService s : bluetoothGatt.getServices()){
-            System.out.println("Service UUID : "+s.getUuid());
-            HashMap<UUID,BluetoothGattCharacteristic> tempChars = new HashMap<>();
+            services+=1;
             for(BluetoothGattCharacteristic c:s.getCharacteristics()){
-                System.out.println("\tCharacteristic UUID : "+c.getUuid());
-                tempChars.put(c.getUuid(),c);
-                for(BluetoothGattDescriptor d:c.getDescriptors()){
-                    System.out.println("\t\tDescriptor UUID : "+c.getUuid());
-                }
+                characteristics+=1;
             }
         }
-        Log.d(TAG, "\ncheckAvailableServices: END *********************************************************\n");
+        Log.d(TAG, "checkAvailableServices: Discovered (Services,Characteristics) = "+services+","+characteristics);
     }
 
     //Notifying the listeners by calling the BluetoothListeners' implemented methods
@@ -274,6 +269,8 @@ public class BluetoothIO extends BluetoothGattCallback {
             gatt.discoverServices();
         }else {
             Log.d(TAG, "onConnectionStateChange: Disconnecting and closing connection");
+            gatt.close();
+            Log.d(TAG, "onConnectionStateChange: Current Device : "+gatt.getDevice());
             listener.onDisconnected();
         }
     }

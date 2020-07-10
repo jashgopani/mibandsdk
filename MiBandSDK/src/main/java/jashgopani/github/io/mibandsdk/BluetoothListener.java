@@ -11,19 +11,19 @@ public interface BluetoothListener {
     /**
      * Called on established connection
      */
-    public void onConnectionEstablished();
+    void onConnectionEstablished();
 
     /**
      * Called on disconnection
      */
-    public void onDisconnected();
+    void onDisconnected();
 
     /**
      * Called on getting successful result
      * @param data Gatt Characterictic which was the target
      * @param isReadOperation Read Operation - true,  Write Operation False
      */
-    public void onResult(BluetoothGattCharacteristic data,boolean isReadOperation);
+    void onResult(BluetoothGattCharacteristic data,boolean isReadOperation);
 
 
     /**
@@ -31,7 +31,7 @@ public interface BluetoothListener {
      *
      * @param rssi RSSI strength
      */
-    public void onResultRssi(int rssi);
+    void onResultRssi(int rssi);
 
     /**
      * Called on fail from service
@@ -40,7 +40,7 @@ public interface BluetoothListener {
      * @param characteristicId Characteristic ID
      * @param msg              Error message
      */
-    public void onFail(UUID serviceUUID,UUID characteristicId,String msg);
+    void onFail(UUID serviceUUID,UUID characteristicId,String msg);
 
     /**
      * Called on fail from Bluetooth IO
@@ -48,5 +48,5 @@ public interface BluetoothListener {
      * @param errorCode Error code
      * @param msg       Error message
      */
-    public void onFail(int errorCode,String msg);
+    void onFail(int errorCode,String msg);
 }

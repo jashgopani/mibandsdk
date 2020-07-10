@@ -1,5 +1,6 @@
 package jashgopani.github.io.mibandsdkexample;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -15,6 +16,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -31,9 +33,11 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.Action;
 import io.reactivex.rxjava3.functions.Consumer;
 import io.reactivex.rxjava3.schedulers.Schedulers;
@@ -50,7 +54,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     private Context context = MainActivity.this;
     private BluetoothAdapter bluetoothAdapter;
     private ToggleButton scanBtn, connectBtn;
-    private Button vibrateBtn,customVibrateBtn, patternTextVibrateBtn;
+    private Button vibrateBtn,customVibrateBtn, patternTextVibrateBtn,nextActivityBtn;
     private TextView statusTv,batteryLevelTv,batteryStatusTv,batteryLastUpdatedTv;
     private boolean isScanning;
     private HashSet<BluetoothDevice> addressHashSet;
@@ -64,6 +68,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     private Switch vledSw;
     private EditText vpatternEt;
     private MiBand miBand;
+    private Disposable batteryDisposable;
     CompositeDisposable disposables;
 
     @Override
@@ -120,7 +125,8 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         bluetoothAdapter = bluetoothManager.getAdapter();
         scanResultsAdapter = new ScanResultsAdapter(deviceArrayList, this);
         miBand = MiBand.getInstance(context);
-        paired = miBand.getDevice()==null?false:true;
+        currentDevice = miBand.getDevice();
+        paired = currentDevice != null;
         disposables = new CompositeDisposable();
     }
 
@@ -136,6 +142,7 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         vibrateBtn = findViewById(R.id.vibrate_btn);
         customVibrateBtn = findViewById(R.id.customVibrate_btn);
         patternTextVibrateBtn = findViewById(R.id.vpatternBtn);
+        nextActivityBtn = findViewById(R.id.nextBtn);
 
         //seek bars
         vonSb = findViewById(R.id.vonSb);
@@ -152,19 +159,18 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
     private void configureViews() {
         scanRv.setAdapter(scanResultsAdapter);
         scanRv.setLayoutManager(new LinearLayoutManager(context));
+        updateUIControls();
     }
 
-
     private void setEventListeners() {
-        //scans nearby BLE devices and stops scanning in SCAN_PERIOD time
+        //buttons
         scanBtn.setOnClickListener((buttonView) -> {
             boolean isChecked = scanBtn.isChecked();
             Log.d(TAG, "Find Device Btn : "+isChecked);
             //change the scanning status
             isScanning = isChecked;
-            if(isChecked){
+            if(isChecked && !paired){
                 resetAdapterData();
-
                 //subscribe to scanCallbacks observer
                 disposables.add(miBand.startScan(SCAN_PERIOD)
                         .subscribeOn(Schedulers.io())
@@ -179,23 +185,35 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
             updateUIControls();
         });
 
-        //connects to the selected device
         connectBtn.setOnClickListener((buttonView) -> {
             boolean isChecked = connectBtn.isChecked();
             updateUIControls();
             if(isChecked)
                 connectAndPair();
             else{
-                miBand.vibrate(CustomVibration.LONG);
                 disconnectAndUnpair();
             }
         });
 
         vibrateBtn.setOnClickListener(v -> {
             miBand.vibrate(VibrationMode.VIBRATION_WITH_LED);
-//                startActivity(new Intent(MainActivity.this,Dummy.class));
         });
 
+        patternTextVibrateBtn.setOnClickListener(v -> {
+            String pattern = vpatternEt.getText().toString();
+            Log.d(TAG, "onClick: Pattern Vibrate : "+pattern);
+            miBand.vibrate(CustomVibration.generatePattern(pattern,","));
+        });
+
+        customVibrateBtn.setOnClickListener(v->{
+            miBand.vibrate(CustomVibration.generatePattern(vonSb.getProgress(),voffSb.getProgress(),vrepeatSb.getProgress()));
+        });
+
+        nextActivityBtn.setOnClickListener(v->{
+            startActivity(new Intent(MainActivity.this,NextActivity.class));
+        });
+
+        //seekbars
         vonSb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -247,20 +265,10 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
             }
         });
 
+        //switch
         vledSw.setOnCheckedChangeListener((buttonView, isChecked) -> updateUIControls());
 
-        patternTextVibrateBtn.setOnClickListener(v -> {
-            String pattern = vpatternEt.getText().toString();
-            Log.d(TAG, "onClick: Pattern Vibrate : "+pattern);
-            miBand.vibrate(CustomVibration.generatePattern(pattern,","));
-        });
-
-        customVibrateBtn.setOnClickListener(v->{
-            miBand.vibrate(CustomVibration.generatePattern(vonSb.getProgress(),voffSb.getProgress(),vrepeatSb.getProgress()));
-        });
     }
-
-
 
     private void connectAndPair() {
         toast("Connecting...");
@@ -270,12 +278,19 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         disposables.add(miBand.connect(currentDevice)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
+                .doOnSubscribe(d->{
+                    Log.d(TAG, "connectAndPair: "+context+" Subscribed to connectionSubject");
+                })
                 .subscribe(handleConnectionNext(), handleConnectionError(),handleConnectionComplete()));
         updateUIControls();
     }
 
-    private void refreshBatteryInfo(){
-        miBand.getBatteryInfo(1, TimeUnit.MINUTES,false)
+    /**
+     * Retrieve Battery Info and update UI
+     */
+    private void refreshBatteryInfo(boolean onlyOnce){
+        if(paired)
+        batteryDisposable = miBand.getBatteryInfo(15, TimeUnit.SECONDS,onlyOnce)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(info->{
@@ -291,51 +306,16 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
                 },()->{
                     Log.d(TAG, "getBatteryInfo: onComplete");
                 });
+
     }
 
     private void disconnectAndUnpair() {
         updateUIControls();
         updateStatustv("Disconnecting...");
-        disposables.add(miBand.disconnect()
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(handleConnectionNext(), handleConnectionError(),handleConnectionComplete()));
+        miBand.disconnect(true);
         updateUIControls();
     }
 
-    private void pair(){
-        Log.d(TAG, "connectAndPair: Connection Complete, Pairing start");
-
-        //start pairing inside onComplete of connect
-        toast("Pairing...");
-        paired = false;
-        updateStatustv("Pairing...");
-        updateUIControls();
-
-        disposables.add(miBand.pair()
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(
-                        pairResult -> {
-                            //returns void
-                            paired = pairResult;
-                        },
-                        pairError -> {
-                            //pairing failed
-                            paired = false;
-                            toast(pairError.getMessage());
-                            Log.d(TAG, "connectAndPair: Pairing Error : ");
-                            pairError.printStackTrace();
-                            currentDevice = null;
-                        },
-                        () -> {
-                            toast(paired?"Paired Successfully":"Device not Paired");
-                            if(paired) refreshBatteryInfo();
-                            updateUIControls();
-                        }
-                )
-        );
-    }
 
     //UI related methods
     private void updateUIControls() {
@@ -343,22 +323,25 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
         progressBar.setVisibility(isScanning ? View.VISIBLE : View.INVISIBLE);
 
         //only toggle the find device button if any device is not connected
-        scanBtn.setClickable(!paired);
+        scanBtn.setClickable(!isScanning && !paired);
         scanBtn.setAlpha(scanBtn.isClickable() ? 1f : 0.2f);
         if(!paired)scanBtn.setChecked(isScanning);
 
         statusTv.setTextColor(isScanning ? Color.LTGRAY : deviceArrayList.size() > 0 ? Color.BLUE :paired?Color.GREEN:Color.RED);
         connectBtn.setClickable(!isScanning && currentDevice!=null);
         connectBtn.setAlpha(connectBtn.isClickable() ? 1f : 0.2f);
+        connectBtn.setChecked(paired);
 
-        vibrateBtn.setClickable(paired);
-        vibrateBtn.setAlpha((paired)?1f:0.2f);
+        vibrateBtn.setClickable(connectBtn.isChecked() && paired);
+        vibrateBtn.setAlpha((vibrateBtn.isClickable())?1f:0.2f);
 
-        customVibrateBtn.setClickable(paired);
-        customVibrateBtn.setAlpha((paired)?1f:0.2f);
+        customVibrateBtn.setClickable(vibrateBtn.isClickable());
+        customVibrateBtn.setAlpha((customVibrateBtn.isClickable())?1f:0.2f);
 
         customVibrateBtn.setText("Seekbar Vibration\n"+seekbarsString());
+
         updateStatustv();
+        clearBatteryDetails();
     }
 
     private String seekbarsString(){
@@ -375,6 +358,14 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
 
     private void updateStatustv(String statusText){
         statusTv.setText(statusText);
+    }
+
+    private void clearBatteryDetails(){
+        if(!paired){
+            batteryLevelTv.setText("---");
+            batteryStatusTv.setText("UNKNOWN");
+            batteryLastUpdatedTv.setText(getResources().getString(R.string.lastUpdated));
+        }
     }
 
     private void resetAdapterData() {
@@ -413,12 +404,9 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
      * @return
      */
     private Action handleScanComplete() {
-        return new Action() {
-            @Override
-            public void run() throws Throwable {
-                isScanning = false;
-                updateUIControls();
-            }
+        return () -> {
+            isScanning = false;
+            updateUIControls();
         };
     }
 
@@ -427,12 +415,9 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
      * @return
      */
     private Consumer<? super Throwable> handleScanError() {
-        return new Consumer<Throwable>() {
-            @Override
-            public void accept(Throwable throwable) throws Throwable {
-                Log.d(TAG, "Scanning Error Received: \n");
-                throwable.printStackTrace();
-            }
+        return (Consumer<Throwable>) throwable -> {
+            Log.d(TAG, "Scanning Error Received: \n");
+            throwable.printStackTrace();
         };
     }
 
@@ -453,14 +438,24 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
             }
         };
     }
+
     /**
-     * Handle onComplete result of connectionSubject
-     * @return Action to be performed. onComplete does emit any value
+     * Handle onNext result of connectionSubject
+     * it emits true when connected and false when disconnected
+     * @return handling result value
      */
-    private Action handleConnectionComplete() {
-        return () -> {
-            //onComplete Method
-            Log.d(TAG, "handleConnectionComplete: "+paired);
+    private Consumer<? super Integer> handleConnectionNext() {
+        return (Consumer<Integer>) result->{
+            //if result is true = connection successful
+            //else disconnect successful
+            Log.d(TAG, "handleConnectionNext: From connectionSubject : "+MiBand.getStatus(result));
+            if(result==MiBand.PAIRED){
+                paired = true;
+                refreshBatteryInfo(true);
+                miBand.enableIdleDisconnect(10,TimeUnit.MINUTES);
+            }else{
+                paired=false;
+            }
             updateUIControls();
         };
     }
@@ -471,36 +466,40 @@ public class MainActivity extends AppCompatActivity implements ScanResultsAdapte
      */
     private Consumer<? super Throwable> handleConnectionError() {
         return (Consumer<Throwable>)error -> {
+            paired = false;
+            if(batteryDisposable!=null)batteryDisposable.dispose();
             toast(error.getMessage());
             updateUIControls();
         };
     }
 
     /**
-     * Handle onNext result of connectionSubject
-     * it emits true when connected and false when disconnected
-     * @return handling result value
+     * Handle onComplete result of connectionSubject
+     * @return Action to be performed. onComplete does emit any value
      */
-    private Consumer<? super Boolean> handleConnectionNext() {
-        return (Consumer<Boolean>) result->{
-            //if result is true = connection successful
-            //else disconnect successful
-            Log.d(TAG, "handleConnectionNext: "+currentDevice.getAddress()+(result?" Connected":" Disconnected"));
-            if(result){
-                pair();
-            }
-            paired = result;
-
+    private Action handleConnectionComplete() {
+        return () -> {
+            //onComplete Method
+            Log.d(TAG, "handleConnectionComplete: Band Disconnected");
+            paired = false;
+            if(batteryDisposable!=null)batteryDisposable.dispose();
             updateUIControls();
         };
     }
 
-
     //Other Activity Lifecycle methods
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if(miBand!=null && miBand.isPaired()){
+            connectAndPair();
+        }
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        disconnectAndUnpair();
         disposables.clear();
     }
 }

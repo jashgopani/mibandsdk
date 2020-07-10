@@ -19,9 +19,10 @@ import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.ObservableEmitter;
 import io.reactivex.rxjava3.core.ObservableOnSubscribe;
-import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.subjects.BehaviorSubject;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import jashgopani.github.io.mibandsdk.models.BatteryInfo;
 import jashgopani.github.io.mibandsdk.models.CustomVibration;
@@ -43,32 +44,36 @@ public class MiBand implements BluetoothListener {
     //for interacting with remote device
     private BluetoothIO bluetoothIo;
 
-    private PublishSubject<Boolean> connectionSubject;
+    //states of connection of band
+    public static final int CONNECTED = 24;
+    public static final int PAIRED = 625;
+    public static final int DISCONNECTED = 130;
+
+    private BehaviorSubject<Integer> connectionSubject;
     private PublishSubject<Integer> rssiSubject;
     private PublishSubject<BatteryInfo> batteryInfoSubject;
-    private PublishSubject<Boolean> pairSubject;
-    private boolean pairRequested = false;
-    private PublishSubject<Void> startVibrationSubject;
-    private PublishSubject<Void> stopVibrationSubject;
+    private boolean connected,pairRequested,paired;
+    private PublishSubject<BatteryInfo> batterySubject;
     private PublishSubject<Boolean> sensorNotificationSubject;
     private PublishSubject<Boolean> realtimeNotificationSubject;
     private PublishSubject<Void> userInfoSubject;
     private PublishSubject<Void> heartRateSubject;
+    private PublishSubject<Integer> activeSubject;
     private Context context;
+    private Observable<String> activityObservable;
+    private CompositeDisposable disposables;
 
     private MiBand(Context c){
         this.context = c;
         bluetoothIo = new BluetoothIO(this);
-        connectionSubject = PublishSubject.create();
         rssiSubject = PublishSubject.create();
         batteryInfoSubject= PublishSubject.create();
-        pairSubject = PublishSubject.create();
-        startVibrationSubject = PublishSubject.create();
-        stopVibrationSubject = PublishSubject.create();
         sensorNotificationSubject = PublishSubject.create();
         realtimeNotificationSubject = PublishSubject.create();
         userInfoSubject = PublishSubject.create();
         heartRateSubject = PublishSubject.create();
+        activeSubject = PublishSubject.create();
+        disposables = new CompositeDisposable();
     }
 
     /**
@@ -87,6 +92,24 @@ public class MiBand implements BluetoothListener {
     }
 
     /**
+     * This returns the String value of the state given by connection observable
+     * @param s (the state received from connectionSubject")
+     * @return String (CONNECTED/PAIRED/DISCONNECTED)
+     */
+    public static String getStatus(Integer s){
+        switch (s){
+            case CONNECTED:
+                return "CONNECTED";
+            case DISCONNECTED:
+                return "DISCONNECTED";
+            case PAIRED:
+                return "PAIRED";
+            default:
+                return "";
+        }
+    }
+
+    /**
      * Get the currently connected device.
      * @return An instance of BluetoothDevice of the connected device else null
      */
@@ -98,7 +121,7 @@ public class MiBand implements BluetoothListener {
      * This method returns an Observable of class ScanResult which can be subscribed in order to handle each each result
      * @return Observable<ScanResult>
      */
-    public @NonNull Observable<ScanResult> startScan(long SCAN_TIMEOUT){
+    public Observable<ScanResult> startScan(long SCAN_TIMEOUT){
         //emitter is responsible for emitting values from the observer
         //we call onNext method of emitter to emit a value ; hence we call it in the scanCallback method
 
@@ -145,22 +168,19 @@ public class MiBand implements BluetoothListener {
      * @return Observable of type ScanResult
      */
     public final Observable<ScanResult> stopScan(){
-        return Observable.create(new ObservableOnSubscribe<ScanResult>() {
-            @Override
-            public void subscribe(@NonNull ObservableEmitter<ScanResult> emitter) throws Throwable {
-                BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
-                if(adapter!=null){
-                    BluetoothLeScanner scanner = adapter.getBluetoothLeScanner();
-                    if(scanner != null){
-                        scanner.stopScan(MiBand.this.getScanCallback(emitter));
-                    }else{
-                        Log.d(TAG, "startScan: Bluetooth Scanner is null");
-                        emitter.onError(new NullPointerException("Bluetooth Scanner is null"));
-                    }
+        return Observable.create(emitter -> {
+            BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+            if(adapter!=null){
+                BluetoothLeScanner scanner = adapter.getBluetoothLeScanner();
+                if(scanner != null){
+                    scanner.stopScan(MiBand.this.getScanCallback(emitter));
                 }else{
-                    Log.d(TAG, "startScan: Bluetooth Adapter is null");
-                    emitter.onError(new NullPointerException("Bluetooth Adapter is null"));
+                    Log.d(TAG, "startScan: Bluetooth Scanner is null");
+                    emitter.onError(new NullPointerException("Bluetooth Scanner is null"));
                 }
+            }else{
+                Log.d(TAG, "startScan: Bluetooth Adapter is null");
+                emitter.onError(new NullPointerException("Bluetooth Adapter is null"));
             }
         });
     }
@@ -192,34 +212,57 @@ public class MiBand implements BluetoothListener {
      * @param device Selected blluetooth device
      * @return Boolean Observable representing connection status ; the value is true for connection succesful and false for disconnection successful
      */
-    public Observable<Boolean> connect(final BluetoothDevice device){
+    public Observable<Integer> connect(final BluetoothDevice device){
+        if(!paired && device!=null){
+            connected=false;
+            connectionSubject = BehaviorSubject.create();
+            bluetoothIo.connect(context,device);
+        }
         return Observable.create(emitter -> {
             connectionSubject.subscribe(new ObserverWrapper(emitter));
-            bluetoothIo.connect(context,device);
         });
+    }
+
+    public boolean isPaired() {
+        return paired;
     }
 
     /**
      * Performs Pairing of device
-     * @return Boolean Observable representing pairing status with the band
+     * @return
      */
-    public Observable<Boolean> pair(){
-        return Observable.create((ObservableOnSubscribe<Boolean>) emitter -> {
+    private void pair(){
+        if(connected && !paired){
             pairRequested = true;
-            pairSubject.subscribe(new ObserverWrapper(emitter));
             bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_MILI,Profile.UUID_CHAR_PAIR, Protocol.PAIR);
-        });
+        }
+    }
+
+    public Observable<Integer> enableIdleDisconnect(long idleTimeout, TimeUnit timeUnit) throws Exception {
+        if(!paired) throw new Exception("Pair Device First");
+
+        return Observable.create((ObservableOnSubscribe<Integer>) emitter -> {
+            activeSubject.subscribe(new ObserverWrapper(emitter));
+        }).timeout(idleTimeout,timeUnit).doOnError(err->{
+            Log.d(TAG, "enableIdleDisconnect: "+err.getMessage());
+            Log.d(TAG, "enableIdleDisconnect: Disconnecting Band since Idle");
+            disconnect(true);
+        }).observeOn(Schedulers.io());
     }
 
     /**
      * Disconnect miband instance. Not disconnecting your band may cause issues while scanning for devices next time
      * @return Boolean Observable that is "false" if disconnection is successful
      */
-    public Observable<Boolean> disconnect(){
-        return Observable.create(emitter -> {
-            connectionSubject.subscribe(new ObserverWrapper(emitter));
+    public void disconnect(boolean vibrateBeforeDisconnect){
+        Log.d(TAG, "disconnect: Called Disconnect");
+        if(paired){
+            Log.d(TAG, "disconnect: Paired Device will be disconnected");
+            if(vibrateBeforeDisconnect)vibrate(CustomVibration.DEFAULT);
             bluetoothIo.disconnect();
-        });
+        }else{
+            notifyConnectionResult(DISCONNECTED);
+        }
     }
 
     /**
@@ -227,6 +270,7 @@ public class MiBand implements BluetoothListener {
      * @return
      */
     public Observable<Integer> readRssi(){
+        if(activeSubject.hasObservers())activeSubject.onNext(1);
         return Observable.create(emitter -> {
             rssiSubject.subscribe(new ObserverWrapper(emitter));
             bluetoothIo.readRssi();
@@ -237,8 +281,8 @@ public class MiBand implements BluetoothListener {
      * Get Battery Information of Miband.
      * @return An Instance of BatteryInfo class which is instantiated with the retrieved battery details
      */
-    public Observable<BatteryInfo> getBatteryInfo(long interval,TimeUnit timeUnit,boolean onlyOnce){
-        @NonNull Observable<Long> first = Observable.just((long)0);
+    public Observable<BatteryInfo> getBatteryInfo(long interval, TimeUnit timeUnit, boolean onlyOnce){
+        @NonNull Observable<Long> first = Observable.defer(()->Observable.just((long)0).delay(5,TimeUnit.SECONDS));
         @NonNull Observable<Long> repeated = Observable.interval(interval, timeUnit);
         @NonNull Observable<BatteryInfo> batteryObservable = Observable.create(emitter -> {
             batteryInfoSubject.subscribe(new ObserverWrapper(emitter));
@@ -273,23 +317,16 @@ public class MiBand implements BluetoothListener {
      * Vibrates the MIBand with Default Vibration Pattern Once
      */
     public void vibrate(){
-        vibrate(CustomVibration.DEFAULT,getVibrationProtocol(null));
+        vibrateBand(CustomVibration.DEFAULT,getVibrationProtocol(null));
     }
 
-    /**
-     * Vibrates the MiBand {@param} vibrationCount times
-     * @param vibrationCount
-     */
-    public void vibrate(int vibrationCount){
-        vibrate(CustomVibration.generatePattern(vibrationCount));
-    }
 
     /**
      * Vibrates the MiBand using DEFAULT vibration with {@param} mode once
      * @param mode
      */
     public void vibrate(VibrationMode mode){
-        vibrate(CustomVibration.DEFAULT,getVibrationProtocol(mode));
+        vibrateBand(CustomVibration.DEFAULT,getVibrationProtocol(mode));
     }
 
     /**
@@ -297,12 +334,17 @@ public class MiBand implements BluetoothListener {
      * @param vpattern
      */
     public void vibrate(Integer[] vpattern){
-        vibrate(vpattern,getVibrationProtocol(null));
+        vibrateBand(vpattern,getVibrationProtocol(null));
     }
 
+    /**
+     * Vibrates the band based on the pattern and Vibration Mode
+     * @param vpattern Vibration Pattern
+     * @param mode With LED / Witout LED
+     */
     public void vibrate(Integer[] vpattern,VibrationMode mode){
         if(vpattern==null)vpattern = CustomVibration.DEFAULT;
-        vibrate(vpattern,getVibrationProtocol(mode));
+        vibrateBand(vpattern,getVibrationProtocol(mode));
     }
 
 
@@ -311,7 +353,8 @@ public class MiBand implements BluetoothListener {
      * @param vpattern
      * @param mode
      */
-    private void vibrate(Integer[] vpattern, byte[] mode){
+    private void vibrateBand(Integer[] vpattern, byte[] mode){
+        if(activeSubject.hasObservers())activeSubject.onNext(1);
         if(vpattern.length %2 == 1){
             Integer[] temp = new Integer[vpattern.length+1];
             System.arraycopy(vpattern,0,temp,0,vpattern.length);
@@ -359,28 +402,13 @@ public class MiBand implements BluetoothListener {
     }
 
 
-    /**
-     * Stop vibration
-     * @return
-     */
-    public Observable<Void> stopVibration(){
-        return Observable.create(new ObservableOnSubscribe<Void>() {
-            @Override
-            public void subscribe(@NonNull ObservableEmitter<Void> emitter) throws Throwable {
-                stopVibrationSubject.subscribe(new ObserverWrapper(emitter));
-                bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION,
-                        Protocol.STOP_VIBRATION);
-            }
-        });
-    }
+    private void notifyConnectionResult(Integer state){
+        connectionSubject.onNext(state);
 
-    private void notifyConnectionResult(Boolean result){
-        connectionSubject.onNext(result);
-        connectionSubject.onComplete();
-        Log.d(TAG, "notifyConnectionResult: Emission complete ; Value was = "+result);
-
-        //create a new connection subject
-        connectionSubject = PublishSubject.create();
+        if(DISCONNECTED==state){
+            connectionSubject.onComplete();
+            connectionSubject = BehaviorSubject.create();
+        }
     }
 
     //Implementation of Interface methods
@@ -388,21 +416,30 @@ public class MiBand implements BluetoothListener {
     * These methods will be called by BluetoothIO class for verifying and notifying the status of various tasks
     * like connection,read/write success or fail
     * */
+
     @Override
     public void onConnectionEstablished() {
-        Log.d(TAG, "onConnectionEstablished: notifying connection success");
-        notifyConnectionResult(true);
+        Log.d(TAG, "onConnectionEstablished: Connected | Initiating Pairing...");
+        connected = true;
+        paired = false;
+        pair();
+        notifyConnectionResult(CONNECTED);
     }
 
     @Override
     public void onDisconnected() {
-        Log.d(TAG, "onDisconnected: notifying disconnection success");
-        notifyConnectionResult(false);
+        Log.d(TAG, "onDisconnected: Band Disconnected");
+        connected = false;
+        paired = false;
+        activeSubject.onComplete();
+        activeSubject = PublishSubject.create();
+        notifyConnectionResult(DISCONNECTED);
     }
 
 
     @Override
     public void onResult(BluetoothGattCharacteristic data,boolean wasReadOperation) {
+        if(activeSubject.hasObservers())activeSubject.onNext(1);
         UUID serviceUUID = data.getService().getUuid();
         UUID characteristicUUID = data.getUuid();
         byte[] characteristicValue = data.getValue();
@@ -429,13 +466,12 @@ public class MiBand implements BluetoothListener {
                     if(Arrays.equals(Protocol.PAIR,characteristicValue)){
                         Log.d(TAG, "onResult: Pairing success");
                         vibrate(CustomVibration.DEFAULT);
-                        pairSubject.onNext(true);
-                        pairSubject.onComplete();
-                        pairSubject = PublishSubject.create();
+                        paired = true;
+                        connectionSubject.onNext(PAIRED);
                     }else{
-
-                        pairSubject.onError(new Exception("Pairing Failed"));
-                        pairSubject = PublishSubject.create();
+                        //disconnect if pairing fails
+                        disconnect(true);
+                        paired = false;
                     }
                 }
 
@@ -462,8 +498,7 @@ public class MiBand implements BluetoothListener {
         if(Profile.UUID_SERVICE_VIBRATION.equals(serviceUUID)){
             if(Profile.UUID_CHAR_VIBRATION.equals(characteristicUUID)){
                 if(Arrays.equals(characteristicValue,Protocol.STOP_VIBRATION)){
-                    stopVibrationSubject.onComplete();
-                    stopVibrationSubject = PublishSubject.create();
+                    //do something
                 }
             }
         }
@@ -491,16 +526,13 @@ public class MiBand implements BluetoothListener {
             // Pair
             if (characteristicId == Profile.UUID_CHAR_PAIR) {
                 Log.d(TAG, "onFail: Pair failed : "+msg);
-                pairSubject.onError(new Exception("Pairing failed"));
-                pairSubject = PublishSubject.create();
+                disconnect(true);
             }
         }
         // vibration service
         if (serviceUUID == Profile.UUID_SERVICE_VIBRATION) {
             if (characteristicId == Profile.UUID_CHAR_VIBRATION) {
                 Log.d(TAG, "onFail: Enable/Disabled Vibration Failed : "+msg);
-                stopVibrationSubject.onError(new Exception("Enable/disable vibration failed"));
-                stopVibrationSubject = PublishSubject.create();
             }
         }
     }
@@ -511,7 +543,7 @@ public class MiBand implements BluetoothListener {
         switch (errorCode){
             case BluetoothIO.ERROR_CONNECTION_FAILED:
                 connectionSubject.onError(new Exception("Establishing connection failed"));
-                connectionSubject = PublishSubject.create();
+                connectionSubject = BehaviorSubject.create();
                 break;
             case BluetoothIO.ERROR_READ_RSSI_FAILED:
                 rssiSubject.onError(new Exception("Reading RSSI failed"));

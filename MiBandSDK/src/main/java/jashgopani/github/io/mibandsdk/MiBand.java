@@ -374,6 +374,7 @@ public class MiBand implements BluetoothListener {
      * @param mode
      */
     private void vibrateBand(Integer[] vpattern, byte[] mode){
+        if(!paired || getDevice()==null)return;
         if(activeSubject.hasObservers())activeSubject.onNext(1);
         if(vpattern.length %2 == 1){
             Integer[] temp = new Integer[vpattern.length+1];

@@ -42,7 +42,7 @@ public class CustomVibration {
     public static final Integer[] DEFAULT = new Integer[]{z,x,z,x};
     public static final Integer[] LEFT_PULSE = new Integer[]{zzz,xx,z,xx,z,xx};
     public static final Integer[] RIGHT_PULSE = new Integer[]{z,xx,z,xx,zzz,xx};
-    public static final Integer[] FROWN = new Integer[]{zzz,x,z,x,z,zzz,x};
+    public static final Integer[] FROWN = new Integer[]{zzz,x,z,x,z,x,zzz,xx};
     public static final Integer[] SMILE = new Integer[]{z,x,zzz,x,zzz,x,z,x};
     public static final Integer[] ARC = new Integer[]{zz,x,zz,x,zz,x,zz,x};
     public static final Integer[] LONG = new Integer[]{zzzz,xx};

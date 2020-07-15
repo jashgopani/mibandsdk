@@ -19,6 +19,7 @@ import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.ObservableEmitter;
 import io.reactivex.rxjava3.core.ObservableOnSubscribe;
+import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
@@ -52,7 +53,6 @@ public class MiBand implements BluetoothListener {
     private BehaviorSubject<Integer> connectionSubject;
     private PublishSubject<Integer> rssiSubject;
     private PublishSubject<BatteryInfo> batteryInfoSubject;
-    private boolean connected,pairRequested,paired;
     private PublishSubject<BatteryInfo> batterySubject;
     private PublishSubject<Boolean> sensorNotificationSubject;
     private PublishSubject<Boolean> realtimeNotificationSubject;
@@ -62,6 +62,9 @@ public class MiBand implements BluetoothListener {
     private Context context;
     private Observable<String> activityObservable;
     private CompositeDisposable disposables;
+
+    private boolean connected,pairRequested,paired;
+    private int lastUpdatedBattery = -1;
 
     private MiBand(Context c){
         this.context = c;
@@ -296,6 +299,23 @@ public class MiBand implements BluetoothListener {
     }
 
     /**
+     * Get the latest fetched value of battery of connected device
+     * @return battery value [0-100]
+     */
+    public int getLastUpdatedBattery() {
+        if(!paired || getDevice()==null)return -1;
+        return lastUpdatedBattery;
+    }
+
+    /**
+     * update the value of lastUpdatedBattery
+     * @param lastUpdatedBattery
+     */
+    private void setLastUpdatedBattery(int lastUpdatedBattery) {
+        this.lastUpdatedBattery = lastUpdatedBattery;
+    }
+
+    /**
      * Get Vibration data to be written based on LED Requirements
      * @param mode
      * @return
@@ -375,7 +395,7 @@ public class MiBand implements BluetoothListener {
                     else
                         bluetoothIo.writeCharacteristic(Profile.UUID_SERVICE_VIBRATION, Profile.UUID_CHAR_VIBRATION, Protocol.STOP_VIBRATION);
                 })//Invoke function based on value
-                .delay(delay, TimeUnit.MILLISECONDS)) // Delay the value downstream i.e delay calling of onNext Method by the observable
+                .delay(delay, TimeUnit.MILLISECONDS, Schedulers.computation())) // Delay the value downstream i.e delay calling of onNext Method by the observable
                 //Till here we created multiple single observers, now to combine all in sequence, we use concat map
                 //boolean value which we are emitting is of no use, we're just doing it for the sake of delaying and moving to next value
                 .concatMap( (Flowable<Boolean> shouldVibrate) -> shouldVibrate)
@@ -483,6 +503,7 @@ public class MiBand implements BluetoothListener {
                 if(characteristicValue.length==10){
                     Log.d(TAG, "onResult: BatteryInfo : "+Arrays.toString(characteristicValue));
                     BatteryInfo batteryInfo = BatteryInfo.fromByteData(characteristicValue);
+                    setLastUpdatedBattery(batteryInfo.getLevel());
                     batteryInfoSubject.onNext(batteryInfo);
                     batteryInfoSubject.onComplete();
                     Log.d(TAG, "onResult: Battery Info : "+batteryInfo);

@@ -6,3 +6,5 @@
 [![GitHub license](https://img.shields.io/github/license/jashgopani/mibandsdk)](https://github.com/jashgopani/mibandsdk/blob/master/LICENSE)
 
 This is still under development and will be updated soon. 
+
+ - Currently the sdk only supports miband1
